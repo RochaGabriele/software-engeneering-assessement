@@ -96,7 +96,7 @@ Findings describe the baseline (`a456096`). The *Status* column starts as `Plann
 
 Each finding gets a section with: **ID · Severity · Location (file:line at `a456096`) · Observation (with evidence) · Impact · Recommendation · Status**. Severity scale: *High* = incorrect behavior, data loss or security exposure; *Medium* = maintainability or operability risk; *Low* = hygiene.
 
-- [ ] **Step 1: Write the summary table and one section per finding**
+- [x] **Step 1: Write the summary table and one section per finding**
 
 | ID | Sev. | Area | Finding (location) | Planned disposition |
 |---|---|---|---|---|
@@ -127,8 +127,8 @@ Each finding gets a section with: **ID · Severity · Location (file:line at `a4
 | F-25 | Low | Scalability | SQLite (single writer, file-based) and no pagination are acceptable for the assessment, not for production | Recommended |
 | F-26 | Low | Language | "Inventory" module holds the product catalog (no stock concept), which diverges from the ubiquitous language of Task 3 | Recommended (rename when a real inventory concept appears) |
 
-- [ ] **Step 2:** Add a closing *Prioritized recommendations* list (F-14, F-15, F-16, F-09, F-24, F-25, F-23, F-26), each with one sentence on *what to do first and why*.
-- [ ] **Step 3: Commit** `docs(task1): document code analysis findings`.
+- [x] **Step 2:** Add a closing *Prioritized recommendations* list (F-14, F-15, F-16, F-09, F-24, F-25, F-23, F-26), each with one sentence on *what to do first and why*.
+- [x] **Step 3: Commit** `docs(task1): document code analysis findings`.
 
 ---
 
@@ -140,8 +140,8 @@ Each finding gets a section with: **ID · Severity · Location (file:line at `a4
 - modify every `src/**/*.csproj`, `.gitignore`
 - delete `.DS_Store`
 
-- [ ] **Step 1: Prove the defect.** Run `dotnet build` from the root. Expected: `MSB1003`.
-- [ ] **Step 2: Move the solution:** `git mv src/DemoSolution.slnx DemoSolution.slnx`. Prefix every path with `src/`:
+- [x] **Step 1: Prove the defect.** Run `dotnet build` from the root. Expected: `MSB1003`.
+- [x] **Step 2: Move the solution:** `git mv src/DemoSolution.slnx DemoSolution.slnx`. Prefix every path with `src/`:
 
 ```xml
 <Solution>
@@ -153,7 +153,7 @@ Each finding gets a section with: **ID · Severity · Location (file:line at `a4
 </Solution>
 ```
 
-- [ ] **Step 3: `Directory.Build.props`.** Shared properties. Warnings are deliberately *not* escalated to errors (spec NFR-02).
+- [x] **Step 3: `Directory.Build.props`.** Shared properties. Warnings are deliberately *not* escalated to errors (spec NFR-02).
 
 ```xml
 <Project>
@@ -165,7 +165,7 @@ Each finding gets a section with: **ID · Severity · Location (file:line at `a4
 </Project>
 ```
 
-- [ ] **Step 4: `Directory.Packages.props`** with Central Package Management and transitive pinning. Only security-motivated bumps; other baseline versions are kept.
+- [x] **Step 4: `Directory.Packages.props`** with Central Package Management and transitive pinning. Only security-motivated bumps; other baseline versions are kept.
 
 ```xml
 <Project>
@@ -192,15 +192,15 @@ Each finding gets a section with: **ID · Severity · Location (file:line at `a4
 </Project>
 ```
 
-- [ ] **Step 5: Clean up the `.csproj` files.**
+- [x] **Step 5: Clean up the `.csproj` files.**
   - Remove `TargetFramework`/`Nullable`/`ImplicitUsings` and every `Version="…"` attribute.
   - Remove `Microsoft.AspNetCore.OpenApi` from `Demo.Api.csproj` (F-19).
   - Keep `IsPackable=false` in the test project.
-- [ ] **Step 6: Hygiene.**
+- [x] **Step 6: Hygiene.**
   - `git rm --cached .DS_Store` and delete the file.
   - Append `.DS_Store` to `.gitignore`.
   - Create `.gitattributes` containing `* text=auto`.
-- [ ] **Step 7: Verify.**
+- [x] **Step 7: Verify.**
 
 | Command (from root) | Expected |
 |---|---|
@@ -208,7 +208,7 @@ Each finding gets a section with: **ID · Severity · Location (file:line at `a4
 | `dotnet test` | `Passed: 1` (placeholder test still present) |
 | `dotnet list package --vulnerable --include-transitive` | "has no vulnerable packages" for every project |
 
-- [ ] **Step 8: Commit** `build: move solution to root, centralize build settings and fix vulnerable packages`.
+- [x] **Step 8: Commit** `build: move solution to root, centralize build settings and fix vulnerable packages`.
 
 ---
 
@@ -220,8 +220,8 @@ Each finding gets a section with: **ID · Severity · Location (file:line at `a4
 
 Behavior must be unchanged. Seeding stays in `Program.cs` until Task 9.
 
-- [ ] **Step 1: `appsettings.json`:** add `"ConnectionStrings": { "Demo": "Data Source=demo.db" }`.
-- [ ] **Step 2: `AddApplication`** registers `IInventoryModule` (it is deleted in Task 9).
+- [x] **Step 1: `appsettings.json`:** add `"ConnectionStrings": { "Demo": "Data Source=demo.db" }`.
+- [x] **Step 2: `AddApplication`** registers `IInventoryModule` (it is deleted in Task 9).
 
 ```csharp
 namespace Demo.Application;
@@ -236,7 +236,7 @@ public static class DependencyInjection
 }
 ```
 
-- [ ] **Step 3: `AddInfrastructure`.** The connection string is read **lazily** inside the options callback, so test hosts can override it (Task 13).
+- [x] **Step 3: `AddInfrastructure`.** The connection string is read **lazily** inside the options callback, so test hosts can override it (Task 13).
 
 ```csharp
 namespace Demo.Infrastructure;
@@ -263,12 +263,12 @@ public static class DependencyInjection
 
 `Demo.Application.csproj` gets `Microsoft.Extensions.Options.ConfigurationExtensions` (CPM `10.0.14`). It provides `IConfiguration`, `IServiceCollection`, options binding and `IValidateOptions` for this and later tasks. It flows transitively to Infrastructure through the project reference.
 
-- [ ] **Step 4: `Program.cs`** calls `builder.Services.AddApplication(builder.Configuration)` and `AddInfrastructure(builder.Configuration)` in place of the inline registrations. The seed block stays.
-- [ ] **Step 5: Verify.**
+- [x] **Step 4: `Program.cs`** calls `builder.Services.AddApplication(builder.Configuration)` and `AddInfrastructure(builder.Configuration)` in place of the inline registrations. The seed block stays.
+- [x] **Step 5: Verify.**
   - `dotnet build` and `dotnet test` from the root are green.
   - Delete `src/Demo.Api/demo.db*`, run `cd src/Demo.Api && dotnet run --launch-profile http`.
   - `curl http://localhost:5022/api/products/SKU1` → `200 {"sku":"SKU1","name":"Name","price":103.3}`.
-- [ ] **Step 6: Commit** `refactor: move service registration into layer composition methods`.
+- [x] **Step 6: Commit** `refactor: move service registration into layer composition methods`.
 
 ---
 
@@ -281,7 +281,7 @@ public static class DependencyInjection
 
 Contracts: Appendix A.1.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
 
 | Test | Input | Expected |
 |---|---|---|
@@ -298,8 +298,8 @@ Contracts: Appendix A.1.
 | `Identity_ReturnsSameAmountNormalized` | `102.2m USD`, `Identity(USD)` | `"102.20"`, `USD`, `AsOf == null` |
 | `Ctor_NonPositiveRate_Throws` (Theory) | `0m`, `-1m` | `DomainException` |
 
-- [ ] **Step 2:** Run `dotnet test --filter "FullyQualifiedName~Domain.Common"`. Expected: compile failure, because the types do not exist yet.
-- [ ] **Step 3: Implement per Appendix A.1.** The rounding helper is the single rounding rule of the system (ADR-0008):
+- [x] **Step 2:** Run `dotnet test --filter "FullyQualifiedName~Domain.Common"`. Expected: compile failure, because the types do not exist yet.
+- [x] **Step 3: Implement per Appendix A.1.** The rounding helper is the single rounding rule of the system (ADR-0008):
 
 ```csharp
 public Money RoundToMinorUnits() =>
@@ -307,8 +307,8 @@ public Money RoundToMinorUnits() =>
     new(decimal.Round(Amount, MinorUnits, MidpointRounding.AwayFromZero) + 0.00m, Currency);
 ```
 
-- [ ] **Step 4:** Run the tests. Expected: all pass. Run `dotnet build`. Expected: 0 warnings.
-- [ ] **Step 5: Commit** `feat(domain): add shared kernel money value objects`.
+- [x] **Step 4:** Run the tests. Expected: all pass. Run `dotnet build`. Expected: 0 warnings.
+- [x] **Step 5: Commit** `feat(domain): add shared kernel money value objects`.
 
 ---
 
@@ -320,7 +320,7 @@ public Money RoundToMinorUnits() =>
 
 Contracts: Appendix A.2. `t0 = 2026-10-26T06:00:00Z`.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
 
 | Test | Scenario | Expected |
 |---|---|---|
@@ -335,10 +335,10 @@ Contracts: Appendix A.2. `t0 = 2026-10-26T06:00:00Z`.
 | `ToConversion_MapsFields` | USD/EUR `0.92` at `t0` | `From USD`, `To EUR`, `Rate 0.92`, `AsOf t0` |
 | `HistoryEntry_Record_CopiesCurrentState` | from a created rate | same pair/rate/timestamps; `Id == 0` |
 
-- [ ] **Step 2:** Run the tests. Expected: compile failure.
-- [ ] **Step 3:** Implement per Appendix A.2.
-- [ ] **Step 4:** Run the tests. Expected: pass.
-- [ ] **Step 5: Commit** `feat(domain): add exchange rate aggregate and history entry`.
+- [x] **Step 2:** Run the tests. Expected: compile failure.
+- [x] **Step 3:** Implement per Appendix A.2.
+- [x] **Step 4:** Run the tests. Expected: pass.
+- [x] **Step 5: Commit** `feat(domain): add exchange rate aggregate and history entry`.
 
 ---
 
@@ -350,7 +350,7 @@ Contracts: Appendix A.2. `t0 = 2026-10-26T06:00:00Z`.
 
 Contracts: Appendix A.3.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
 
 | Test | Expected |
 |---|---|
@@ -360,8 +360,8 @@ Contracts: Appendix A.3.
 | `ImplicitConversionFromError_CreatesFailure` | `Result<int> r = Error.NotFound("x", "y")` → failure |
 | `ErrorFactories_SetType` | `Validation`/`NotFound`/`Unavailable` set `Type` |
 
-- [ ] **Steps 2–4:** red → implement → green.
-- [ ] **Step 5: Commit** `feat(application): add result, error and use-case abstractions`.
+- [x] **Steps 2–4:** red → implement → green.
+- [x] **Step 5: Commit** `feat(application): add result, error and use-case abstractions`.
 
 ---
 
@@ -375,7 +375,7 @@ Contracts: Appendix A.3.
 
 Not registered in DI yet: the repository implementation arrives in Task 10. Development builds validate the container on startup, so registering early would break `dotnet run`.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
 
 | Test | Scenario | Expected |
 |---|---|---|
@@ -391,8 +391,8 @@ Not registered in DI yet: the repository implementation arrives in Task 10. Deve
 | `Reader_UnsupportedTarget_ReturnsValidation` | USD→JPY | code `currency.unsupported`, message lists `USD, EUR, CAD` |
 | `Reader_FromNonBase_ReturnsValidation` | EUR→CAD | code `conversion.unsupported` |
 
-- [ ] **Steps 2–4:** red → implement per Appendix A.4 → green.
-- [ ] **Step 5: Commit** `feat(exchange-rates): add supported currencies and conversion reader contract`.
+- [x] **Steps 2–4:** red → implement per Appendix A.4 → green.
+- [x] **Step 5: Commit** `feat(exchange-rates): add supported currencies and conversion reader contract`.
 
 ---
 
@@ -406,7 +406,7 @@ Not registered in DI yet: the repository implementation arrives in Task 10. Deve
 
 Contracts: Appendix A.5. Targets EUR, CAD, GBP, CHF. `t0 = 2026-10-26T06:00:00Z`; clock = `t0 + 5 min`.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
 
 | Test | Given | Expected |
 |---|---|---|
@@ -419,8 +419,8 @@ Contracts: Appendix A.5. Targets EUR, CAD, GBP, CHF. `t0 = 2026-10-26T06:00:00Z`
 | `ProviderThrows_Propagates` | provider throws `ExchangeRateProviderException` | the same exception propagates; nothing saved |
 | `RequestsBaseAndConfiguredTargets` | any | provider received `USD` and `[EUR,CAD,GBP,CHF]` |
 
-- [ ] **Steps 2–4:** red → implement per Appendix A.5 → green.
-- [ ] **Step 5: Commit** `feat(exchange-rates): add synchronize exchange rates use case`.
+- [x] **Steps 2–4:** red → implement per Appendix A.5 → green.
+- [x] **Step 5: Commit** `feat(exchange-rates): add synchronize exchange rates use case`.
 
 ---
 
@@ -440,7 +440,7 @@ This task changes the shape of `Product`, so it also updates every caller to kee
 
 Contracts: Appendix A.6–A.8.
 
-- [ ] **Step 1: Domain tests (red).**
+- [x] **Step 1: Domain tests (red).**
 
 | Test | Expected |
 |---|---|
@@ -452,7 +452,7 @@ Contracts: Appendix A.6–A.8.
 | `Product_NegativePrice_Throws` | `-0.01 USD` → `DomainException` |
 | `Product_NonBaseCurrency_Throws` | `10 EUR` → `DomainException` |
 
-- [ ] **Step 2: Application tests (red).** `GetProductCatalog` uses the real `CurrencyConversionReader` over `InMemoryExchangeRateRepository`. Seed products: SKU2 `102.20`, SKU1 `103.30` (inserted out of order on purpose). USD/EUR rate `0.92`.
+- [x] **Step 2: Application tests (red).** `GetProductCatalog` uses the real `CurrencyConversionReader` over `InMemoryExchangeRateRepository`. Seed products: SKU2 `102.20`, SKU1 `103.30` (inserted out of order on purpose). USD/EUR rate `0.92`.
 
 | Test | Query | Expected |
 |---|---|---|
@@ -467,13 +467,13 @@ Contracts: Appendix A.6–A.8.
 | `Catalog_Unsupported_ReturnsUnsupported` | `"JPY"` | code `currency.unsupported` |
 | `Catalog_NoRate_ReturnsUnavailable` | `"CAD"` | code `exchange_rate.unavailable`; product repository **not** read |
 
-- [ ] **Step 3:** Implement domain and application per the appendix. Delete `InventoryModule.cs`. `AddApplication` registers `IQueryHandler<GetProductBySkuQuery, Result<ProductDto>>` → `GetProductBySkuQueryHandler` (scoped). The catalog handler is registered in Task 13.
-- [ ] **Step 4: Infrastructure adaptation.**
+- [x] **Step 3:** Implement domain and application per the appendix. Delete `InventoryModule.cs`. `AddApplication` registers `IQueryHandler<GetProductBySkuQuery, Result<ProductDto>>` → `GetProductBySkuQueryHandler` (scoped). The catalog handler is registered in Task 13.
+- [x] **Step 4: Infrastructure adaptation.**
   - `ProductConfiguration` per Appendix B.1. Use `HasPrecision(18, 2)`, **not** `HasColumnType` (F-02).
   - `ProductRepository` implements `GetBySkuAsync` with `FirstOrDefaultAsync`, and `ListAsync` with `AsNoTracking().OrderBy(p => p.Sku)`.
   - Move the seed from `Program.cs` to `DemoDataSeeder`. Same SKUs, names and prices. Insert only when `Products` is empty.
   - Hook it with `options.UseSeeding((ctx, _) => DemoDataSeeder.Seed((DemoDbContext)ctx)).UseAsyncSeeding((ctx, _, ct) => DemoDataSeeder.SeedAsync((DemoDbContext)ctx, ct))`. Both run during `EnsureCreated` now and during `Migrate` after Task 10.
-- [ ] **Step 5: API adaptation.**
+- [x] **Step 5: API adaptation.**
   - `ProductsController` (namespace `Demo.Api.Controllers`) gets `GET {sku}` → handler → `Ok(dto)` or `this.ToProblemResult(error)`. For now its constructor takes only the by-SKU handler. Task 13 adds the catalog handler to reach the shape in Appendix B.4.
   - `ErrorResults` per Appendix B.4.
   - `Program.cs`:
@@ -481,7 +481,7 @@ Contracts: Appendix A.6–A.8.
     - `app.UseExceptionHandler()` and `app.UseStatusCodePages()` before the other middleware
     - keep `EnsureCreated()` for now (removed in Task 10)
     - remove the inline seed.
-- [ ] **Step 6: Verify.**
+- [x] **Step 6: Verify.**
   - `dotnet test` is green.
   - Delete `src/Demo.Api/demo.db*`, run the app, and check:
 
@@ -491,7 +491,7 @@ Contracts: Appendix A.6–A.8.
 | `GET /api/products/NOPE` | `404`, `application/problem+json`, `code: product.not_found`, no stack trace |
 | `sqlite3`/Python `typeof(Price)` | `text` |
 
-- [ ] **Step 7: Commit** `refactor(inventory): rich product model, use-case handlers and problem details`.
+- [x] **Step 7: Commit** `refactor(inventory): rich product model, use-case handlers and problem details`.
 
 ---
 
@@ -507,8 +507,8 @@ Contracts: Appendix A.6–A.8.
 - New project `src/Demo.IntegrationTests`, added to the solution: references `Demo.Api` plus packages `Microsoft.AspNetCore.Mvc.Testing 10.0.14`, xunit, the runner, the SDK and coverlet. Add `<InternalsVisibleTo Include="Demo.IntegrationTests" />` to `Demo.Infrastructure.csproj`.
 - Tests: `Persistence/SqliteTestDatabase.cs` (opens `Data Source=:memory:`, keeps the connection open, builds options with seeding, runs `MigrateAsync`), `Persistence/{MigrationAndSeedingTests,ExchangeRatePersistenceTests,ProductRepositoryTests}.cs`.
 
-- [ ] **Step 1: Tool manifest.** `dotnet new tool-manifest`, then `dotnet tool install dotnet-ef --version 10.0.14`.
-- [ ] **Step 2: Write the failing tests** (they compile once the DbSets exist).
+- [x] **Step 1: Tool manifest.** `dotnet new tool-manifest`, then `dotnet tool install dotnet-ef --version 10.0.14`.
+- [x] **Step 2: Write the failing tests** (they compile once the DbSets exist).
 
 | Test | Expected |
 |---|---|
@@ -523,11 +523,11 @@ Contracts: Appendix A.6–A.8.
 | `UnitOfWork_SavesRateAndHistoryTogether` | one `SaveChangesAsync` persists both |
 | `ProductRepository_ListAsync_OrderedBySku` | `[SKU1, SKU2]` |
 
-- [ ] **Step 3: Implement** per Appendix B.1–B.2. `DemoDbContext.OnModelCreating` calls `modelBuilder.ApplyConfigurationsFromAssembly(typeof(DemoDbContext).Assembly)`. Register in `AddInfrastructure`:
+- [x] **Step 3: Implement** per Appendix B.1–B.2. `DemoDbContext.OnModelCreating` calls `modelBuilder.ApplyConfigurationsFromAssembly(typeof(DemoDbContext).Assembly)`. Register in `AddInfrastructure`:
   - `IUnitOfWork` → `sp.GetRequiredService<DemoDbContext>()` (scoped);
   - `IExchangeRateRepository` → `ExchangeRateRepository` (scoped);
   - `IExchangeRateHistoryRepository` → `ExchangeRateHistoryRepository` (scoped).
-- [ ] **Step 4: Generate the migration.**
+- [x] **Step 4: Generate the migration.**
 
 ```
 dotnet tool restore
@@ -539,11 +539,11 @@ Inspect the generated `CreateTable` calls:
 - `PublishedAt`/`RetrievedAt` have `type: "INTEGER"`;
 - a unique index exists on (`BaseCurrency`, `QuoteCurrency`, `PublishedAt`).
 
-- [ ] **Step 5: `DatabaseMigration.MigrateDatabaseAsync`** (Appendix B.3). In `Program.cs`, replace `EnsureCreated` with `await app.Services.MigrateDatabaseAsync();` before `await app.RunAsync();`.
-- [ ] **Step 6: Verify.**
+- [x] **Step 5: `DatabaseMigration.MigrateDatabaseAsync`** (Appendix B.3). In `Program.cs`, replace `EnsureCreated` with `await app.Services.MigrateDatabaseAsync();` before `await app.RunAsync();`.
+- [x] **Step 6: Verify.**
   - `dotnet test` is green.
   - Delete `demo.db*`, run the app: the log shows the migration applied, and `GET /api/products/SKU1` → 200.
-- [ ] **Step 7: Commit** `feat(persistence): store exchange rates with history and switch to migrations`.
+- [x] **Step 7: Commit** `feat(persistence): store exchange rates with history and switch to migrations`.
 
 ---
 
@@ -556,7 +556,7 @@ Inspect the generated `CreateTable` calls:
 
 The client is built in tests as `new OpenExchangeRatesClient(new HttpClient(stub) { BaseAddress = new("https://oxr.test/api/") }, Options.Create(new OpenExchangeRatesOptions { AppId = "test-app-id" }), NullLogger<OpenExchangeRatesClient>.Instance)`.
 
-- [ ] **Step 1: Write the failing tests.** Success body:
+- [x] **Step 1: Write the failing tests.** Success body:
 
 ```json
 {"disclaimer":"…","license":"…","timestamp":1761458400,"base":"USD","rates":{"EUR":0.921234,"CAD":1.401,"GBP":0.7512,"CHF":0.7987}}
@@ -573,8 +573,8 @@ The client is built in tests as `new OpenExchangeRatesClient(new HttpClient(stub
 | `MalformedJson_Throws` | `"not json"` → `ExchangeRateProviderException` with inner `JsonException` |
 | `MissingAppId_ThrowsWithoutSendingRequest` | `AppId = null` → exception mentions `OpenExchangeRates:AppId`; stub request count `0` |
 
-- [ ] **Steps 2–4:** red → implement per Appendix B.5 → green.
-- [ ] **Step 5: Register.**
+- [x] **Steps 2–4:** red → implement per Appendix B.5 → green.
+- [x] **Step 5: Register.**
 
 ```csharp
 services.AddOptions<OpenExchangeRatesOptions>()
@@ -588,7 +588,7 @@ services.AddHttpClient<IExchangeRateProvider, OpenExchangeRatesClient>((sp, clie
 
 `AppId` is deliberately not validated (ADR-0007). Add to `appsettings.json`: `"OpenExchangeRates": { "BaseUrl": "https://openexchangerates.org/api/" }`. **Never** add `AppId` there.
 
-- [ ] **Step 6: Commit** `feat(exchange-rates): add open exchange rates adapter`.
+- [x] **Step 6: Commit** `feat(exchange-rates): add open exchange rates adapter`.
 
 ---
 
@@ -600,7 +600,7 @@ services.AddHttpClient<IExchangeRateProvider, OpenExchangeRatesClient>((sp, clie
 - Api: `appsettings.json`; `Demo.Api.csproj` gets `UserSecretsId` via `dotnet user-secrets init --project src/Demo.Api`.
 - Tests: `src/Demo.IntegrationTests/BackgroundJobs/{ExchangeRatesSyncSchedulerTests,ExchangeRatesSyncJobTests}.cs`.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - Scheduler tests build `var storage = new MemoryStorage();`, a `new RecurringJobManager(storage)` and a `new BackgroundJobClient(storage)`.
   - The scope factory comes from a `ServiceCollection` holding an `IExchangeRateRepository` fake.
   - Recurring jobs are read with `storage.GetConnection().GetRecurringJobs()`, enqueued jobs with `storage.GetMonitoringApi().EnqueuedCount("default")`.
@@ -617,8 +617,8 @@ services.AddHttpClient<IExchangeRateProvider, OpenExchangeRatesClient>((sp, clie
 | `Job_SuccessResult_Completes` | handler success | no exception |
 | `Job_HasConcurrencyAndRetryAttributes` | reflection on `ExecuteAsync` | `DisableConcurrentExecution` present; `AutomaticRetry.Attempts == 3` |
 
-- [ ] **Steps 2–4:** red → implement per Appendix B.6 → green.
-- [ ] **Step 5: Register.**
+- [x] **Steps 2–4:** red → implement per Appendix B.6 → green.
+- [x] **Step 5: Register.**
   - `AddApplication`:
     - `ExchangeRatesOptions`: bind section `ExchangeRates`, add the validator as `IValidateOptions<ExchangeRatesOptions>` singleton, `ValidateOnStart()`;
     - `SupportedCurrencies` singleton from `IOptions<ExchangeRatesOptions>`;
@@ -628,7 +628,7 @@ services.AddHttpClient<IExchangeRateProvider, OpenExchangeRatesClient>((sp, clie
   - `AddInfrastructure`:
     - `ExchangeRateSyncOptions`: bind `ExchangeRates:Sync`, validate `TimeZoneInfo.TryFindSystemTimeZoneById(o.TimeZone, out _)`, `ValidateOnStart()`;
     - `services.AddHostedService<ExchangeRatesSyncScheduler>()`.
-- [ ] **Step 6: `appsettings.json`:**
+- [x] **Step 6: `appsettings.json`:**
 
 ```json
 "ExchangeRates": {
@@ -637,11 +637,11 @@ services.AddHttpClient<IExchangeRateProvider, OpenExchangeRatesClient>((sp, clie
 }
 ```
 
-- [ ] **Step 7: Verify without an App ID.**
+- [x] **Step 7: Verify without an App ID.**
   - Run the app. The Hangfire dashboard → *Recurring Jobs* shows `exchange-rates-sync` with cron `0 6 * * 1`.
   - The bootstrap run appears under *Failed* (after its retries) with the message about `OpenExchangeRates:AppId`.
   - The API still serves `GET /api/products/SKU1`.
-- [ ] **Step 8: Commit** `feat(exchange-rates): schedule weekly sync with hangfire and bootstrap on empty store`.
+- [x] **Step 8: Commit** `feat(exchange-rates): schedule weekly sync with hangfire and bootstrap on empty store`.
 
 ---
 
@@ -658,7 +658,7 @@ services.AddHttpClient<IExchangeRateProvider, OpenExchangeRatesClient>((sp, clie
 - a helper `SeedRateAsync(Currency quote, decimal rate)` writes through a scope's `DemoDbContext`;
 - dispose calls `SqliteConnection.ClearAllPools()` and deletes the temp file.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
 
 | Request | Setup | Expected |
 |---|---|---|
@@ -674,9 +674,9 @@ services.AddHttpClient<IExchangeRateProvider, OpenExchangeRatesClient>((sp, clie
 | `GET /api/products/NOPE` | none | `404`, `code` `product.not_found`; body has no `"stackTrace"`/`"exception"` |
 | `GET /api/products` | `ConfigureTestServices` replaces `IProductRepository` with a fake that throws `InvalidOperationException("boom")` | `500`, `application/problem+json`, has `traceId`; body contains neither `boom` nor `at Demo.` (NFR-05) |
 
-- [ ] **Steps 2–4:** red → implement the action per Appendix B.4 → green.
-- [ ] **Step 5: Swagger.** Run the app in Development. `/swagger` shows `GET /api/products` with the `currency` parameter and responses 200/400/503, and `GET /api/products/{sku}` with 200/404.
-- [ ] **Step 6: Commit** `feat(api): list product catalog with optional currency conversion`.
+- [x] **Steps 2–4:** red → implement the action per Appendix B.4 → green.
+- [x] **Step 5: Swagger.** Run the app in Development. `/swagger` shows `GET /api/products` with the `currency` parameter and responses 200/400/503, and `GET /api/products/{sku}` with 200/404.
+- [x] **Step 6: Commit** `feat(api): list product catalog with optional currency conversion`.
 
 ---
 
@@ -686,13 +686,13 @@ services.AddHttpClient<IExchangeRateProvider, OpenExchangeRatesClient>((sp, clie
 
 The test uses `DemoApiFactory` with `ConfigureTestServices(s => s.AddSingleton<IExchangeRateProvider>(stub))`. The stub returns EUR `0.92`, CAD `1.40`, GBP `0.75`, CHF `0.80` at `t0`.
 
-- [ ] **Step 1: Test** `Sync_ThenCatalogInEur_ReturnsConvertedPrices`.
+- [x] **Step 1: Test** `Sync_ThenCatalogInEur_ReturnsConvertedPrices`.
   - Resolve `ExchangeRatesSyncJob` in a scope (`ActivatorUtilities.CreateInstance`) and call `ExecuteAsync(CancellationToken.None)`.
   - Then `GET /api/products?currency=EUR` → `95.04`/`94.02`.
   - `ExchangeRateHistory` has 4 rows.
   - Run the job again: still 4 history rows (idempotency, DR-05).
-- [ ] **Step 2:** Run it. Expected: pass.
-- [ ] **Step 3: Commit** `test: cover exchange rate sync through catalog conversion end to end`.
+- [x] **Step 2:** Run it. Expected: pass.
+- [x] **Step 3: Commit** `test: cover exchange rate sync through catalog conversion end to end`.
 
 ---
 
@@ -700,10 +700,10 @@ The test uses `DemoApiFactory` with `ConfigureTestServices(s => s.AddSingleton<I
 
 **Files:** `README.md`.
 
-- [ ] **Step 1:** Keep the original sections and update them:
+- [x] **Step 1:** Keep the original sections and update them:
   - Prerequisites: add `dotnet tool restore` for EF tools.
   - Running: `dotnet build`/`dotnet test` from the root now work.
-- [ ] **Step 2:** Add these sections:
+- [x] **Step 2:** Add these sections:
   1. *Configuring Open Exchange Rates*:
      - `dotnet user-secrets set "OpenExchangeRates:AppId" "<id>" --project src/Demo.Api`, or the env var `OpenExchangeRates__AppId`;
      - without it, the API runs and only the sync fails.
@@ -711,13 +711,13 @@ The test uses `DemoApiFactory` with `ConfigureTestServices(s => s.AddSingleton<I
   3. *Catalog endpoint*: `curl` examples for no currency, `EUR`, an unsupported code and the 503 case, plus the error matrix.
   4. *Upgrading from the original starter*: delete `src/Demo.Api/demo.db*` (created by `EnsureCreated`, incompatible with migrations).
   5. *Design documentation*: links to the spec, the ADRs, this plan and `Task1_CodeAnalysis.md`.
-- [ ] **Step 3: Commit** `docs: document configuration, sync operation and catalog endpoint`.
+- [x] **Step 3: Commit** `docs: document configuration, sync operation and catalog endpoint`.
 
 ---
 
 ## Task 16: Manual verification (real app)
 
-- [ ] **Step 1:** Delete `demo.db*`. Run `cd src/Demo.Api && dotnet run --launch-profile http`. Check:
+- [x] **Step 1:** Delete `demo.db*`. Run `cd src/Demo.Api && dotnet run --launch-profile http`. Check:
 
 | Check | Expected |
 |---|---|
@@ -728,26 +728,26 @@ The test uses `DemoApiFactory` with `ConfigureTestServices(s => s.AddSingleton<I
 | `GET /api/products?currency=EUR` before any rate | `503` ProblemDetails |
 | `GET /api/products/NOPE` | `404` ProblemDetails |
 
-- [ ] **Step 2: Live smoke test** (only if an App ID is available).
+- [ ] **Step 2: Live smoke test** (only if an App ID is available). *Pending: requires the reviewer's or candidate's own App ID.*
   - Set it via user-secrets, restart, and let the bootstrap run or click *Trigger now*.
   - The job succeeds.
   - `GET ?currency=EUR|CAD|GBP|CHF` → `200` with converted prices.
   - Trigger again → the history row count is unchanged unless OXR published a newer timestamp.
-- [ ] **Step 3:** Append the observed results (date, request, status, notable output) to the *Verification log* at the end of this plan.
-- [ ] **Step 4: Commit** `docs: record manual verification results`.
+- [x] **Step 3:** Append the observed results (date, request, status, notable output) to the *Verification log* at the end of this plan.
+- [x] **Step 4: Commit** `docs: record manual verification results`.
 
 ---
 
 ## Task 17: Close-out
 
-- [ ] **Step 1:** In `Task1_CodeAnalysis.md`, replace every `Planned: Task N` with `Fixed in <short-hash>`, using `git log --oneline`.
-- [ ] **Step 2:** Walk the spec §14 traceability table. Every requirement must map to a test that exists by name. Fix any gap with a test.
-- [ ] **Step 3: Final verification** from the root:
+- [x] **Step 1:** In `Task1_CodeAnalysis.md`, replace every `Planned: Task N` with `Fixed in <short-hash>`, using `git log --oneline`.
+- [x] **Step 2:** Walk the spec §14 traceability table. Every requirement must map to a test that exists by name. Fix any gap with a test.
+- [x] **Step 3: Final verification** from the root:
   - `dotnet build` → 0 warnings;
   - `dotnet test` → all passed (record the counts);
   - `dotnet list package --vulnerable --include-transitive` → none;
   - `git status` → clean apart from the Task 1 edit.
-- [ ] **Step 4: Commit** `docs(task1): link findings to the commits that resolve them`.
+- [x] **Step 4: Commit** `docs(task1): link findings to the commits that resolve them`.
 
 ---
 

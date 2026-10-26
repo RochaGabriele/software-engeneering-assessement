@@ -16,11 +16,6 @@ public class DemoDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
-        modelBuilder.Entity<Product>(b =>
-        {
-            b.HasKey(p => p.Sku);
-            b.Property(p => p.Name).IsRequired().HasMaxLength(200);
-            b.Property(p => p.Price).HasColumnType("decimal(18,2)");
-        });
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(DemoDbContext).Assembly);
     }
 }

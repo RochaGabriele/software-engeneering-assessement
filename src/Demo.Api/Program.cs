@@ -1,5 +1,4 @@
 using Demo.Application;
-using Demo.Domain.Modules.Inventory;
 using Demo.Infrastructure;
 using Demo.Infrastructure.Persistence;
 using Hangfire;
@@ -10,6 +9,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddProblemDetails();
 
 builder.Services.AddApplication(builder.Configuration);
 builder.Services.AddInfrastructure(builder.Configuration);
@@ -17,6 +17,10 @@ builder.Services.AddInfrastructure(builder.Configuration);
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
+// Unhandled exceptions and empty error responses become RFC 9457 ProblemDetails, without stack traces.
+app.UseExceptionHandler();
+app.UseStatusCodePages();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -30,34 +34,10 @@ app.UseHangfireDashboard();
 
 app.MapControllers();
 
-// Seed Database for Testing
+// Create the database; demo data is seeded by the UseSeeding hook configured in AddInfrastructure.
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<DemoDbContext>();
-    db.Database.EnsureCreated();
-
-    if (!db.Products.Any())
-    {
-        db.Products.Add(
-            new Product()
-            {
-                Sku = "SKU1",
-                Name = "Name",
-                Price = 103.30M
-            }
-        );
-
-        db.Products.Add(
-            new Product()
-            {
-                Sku = "SKU2",
-                Name = "Name",
-                Price = 102.20M
-            }
-        );
-
-        db.SaveChanges();
-    }
+    scope.ServiceProvider.GetRequiredService<DemoDbContext>().Database.EnsureCreated();
 }
 
 app.Run();

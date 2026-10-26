@@ -21,7 +21,10 @@ public static class DependencyInjection
             var connectionString = serviceProvider.GetRequiredService<IConfiguration>().GetConnectionString(ConnectionStringName)
                 ?? throw new InvalidOperationException($"Connection string '{ConnectionStringName}' is not configured.");
 
-            options.UseSqlite(connectionString);
+            options
+                .UseSqlite(connectionString)
+                .UseSeeding((dbContext, _) => DemoDataSeeder.Seed((DemoDbContext)dbContext))
+                .UseAsyncSeeding((dbContext, _, cancellationToken) => DemoDataSeeder.SeedAsync((DemoDbContext)dbContext, cancellationToken));
         });
 
         services.AddScoped<IProductRepository, ProductRepository>();

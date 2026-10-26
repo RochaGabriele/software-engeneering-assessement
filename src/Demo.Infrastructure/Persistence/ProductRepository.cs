@@ -12,8 +12,12 @@ public class ProductRepository : IProductRepository
         _dbContext = dbContext;
     }
 
-    public async Task<Product> GetProduct(string sku)
-    {
-        return await _dbContext.Products.FirstAsync(p => p.Sku == sku);
-    }
+    public Task<Product?> GetBySkuAsync(Sku sku, CancellationToken cancellationToken) =>
+        _dbContext.Products.FirstOrDefaultAsync(product => product.Sku == sku, cancellationToken);
+
+    public async Task<IReadOnlyList<Product>> ListAsync(CancellationToken cancellationToken) =>
+        await _dbContext.Products
+            .AsNoTracking()
+            .OrderBy(product => product.Sku)
+            .ToListAsync(cancellationToken);
 }

@@ -1,26 +1,29 @@
-using Demo.Application.Modules;
+using Demo.Api.ErrorHandling;
+using Demo.Application.Common;
+using Demo.Application.Modules.Inventory;
+using Demo.Application.Modules.Inventory.GetProductBySku;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Ecommerce.Api.Controllers;
+namespace Demo.Api.Controllers;
 
 [ApiController]
 [Route("api/products")]
-public class ProductController : ControllerBase
+public sealed class ProductsController : ControllerBase
 {
-    private readonly IInventoryModule _inventoryModule;
+    private readonly IQueryHandler<GetProductBySkuQuery, Result<ProductDto>> _getProductBySku;
 
-    public ProductController(
-        IInventoryModule inventoryModule
-    )
+    public ProductsController(IQueryHandler<GetProductBySkuQuery, Result<ProductDto>> getProductBySku)
     {
-        _inventoryModule = inventoryModule;
+        _getProductBySku = getProductBySku;
     }
 
     [HttpGet("{sku}")]
-    public async Task<IActionResult> GetProduct(string sku)
+    [ProducesResponseType<ProductDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    public async Task<IActionResult> GetBySkuAsync(string sku, CancellationToken cancellationToken)
     {
-        var product = await _inventoryModule.GetProduct(sku);
+        var result = await _getProductBySku.HandleAsync(new GetProductBySkuQuery(sku), cancellationToken);
 
-        return Ok(product);
+        return result.IsSuccess ? Ok(result.Value) : this.ToProblemResult(result.Error!);
     }
 }

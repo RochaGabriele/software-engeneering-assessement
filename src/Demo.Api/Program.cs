@@ -34,10 +34,7 @@ app.UseHangfireDashboard();
 
 app.MapControllers();
 
-// Create the database; demo data is seeded by the UseSeeding hook configured in AddInfrastructure.
-using (var scope = app.Services.CreateScope())
-{
-    scope.ServiceProvider.GetRequiredService<DemoDbContext>().Database.EnsureCreated();
-}
+// Apply migrations; demo data is seeded by the UseSeeding hook configured in AddInfrastructure.
+await app.Services.MigrateDatabaseAsync();
 
-app.Run();
+await app.RunAsync();

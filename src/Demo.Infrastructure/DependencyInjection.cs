@@ -1,4 +1,6 @@
+using Demo.Application.Common;
 using Demo.Domain.Common.Services;
+using Demo.Domain.Modules.ExchangeRates;
 using Demo.Domain.Modules.Inventory;
 using Demo.Infrastructure.Messaging;
 using Demo.Infrastructure.Persistence;
@@ -21,13 +23,13 @@ public static class DependencyInjection
             var connectionString = serviceProvider.GetRequiredService<IConfiguration>().GetConnectionString(ConnectionStringName)
                 ?? throw new InvalidOperationException($"Connection string '{ConnectionStringName}' is not configured.");
 
-            options
-                .UseSqlite(connectionString)
-                .UseSeeding((dbContext, _) => DemoDataSeeder.Seed((DemoDbContext)dbContext))
-                .UseAsyncSeeding((dbContext, _, cancellationToken) => DemoDataSeeder.SeedAsync((DemoDbContext)dbContext, cancellationToken));
+            options.UseSqlite(connectionString).UseDemoSeeding();
         });
 
+        services.AddScoped<IUnitOfWork>(serviceProvider => serviceProvider.GetRequiredService<DemoDbContext>());
         services.AddScoped<IProductRepository, ProductRepository>();
+        services.AddScoped<IExchangeRateRepository, ExchangeRateRepository>();
+        services.AddScoped<IExchangeRateHistoryRepository, ExchangeRateHistoryRepository>();
         services.AddScoped<IMessagePublisher, FakeMessagePublisher>();
 
         services.AddInfrastructureHangfire();

@@ -37,7 +37,7 @@ DemoSolution.slnx                        (moved from src/)
 Directory.Build.props                    NEW
 Directory.Packages.props                 NEW
 .gitattributes                           NEW
-.config/dotnet-tools.json                NEW  (dotnet-ef 10.0.14)
+dotnet-tools.json                NEW  (dotnet-ef 10.0.14)
 src/Demo.Domain/
   Common/DomainException.cs              NEW
   Common/Currency.cs                     NEW
@@ -503,7 +503,7 @@ Contracts: Appendix A.6–A.8.
   - update `DemoDbContext.cs` (two new DbSets, `: IUnitOfWork`) and `DependencyInjection.cs`;
   - generate `Persistence/Migrations/*`.
 - Api: `Demo.Api.csproj` gets `Microsoft.EntityFrameworkCore.Design` (`PrivateAssets=all`); `Program.cs` drops `EnsureCreated`.
-- Root: `.config/dotnet-tools.json`.
+- Root: `dotnet-tools.json`.
 - New project `src/Demo.IntegrationTests`, added to the solution: references `Demo.Api` plus packages `Microsoft.AspNetCore.Mvc.Testing 10.0.14`, xunit, the runner, the SDK and coverlet. Add `<InternalsVisibleTo Include="Demo.IntegrationTests" />` to `Demo.Infrastructure.csproj`.
 - Tests: `Persistence/SqliteTestDatabase.cs` (opens `Data Source=:memory:`, keeps the connection open, builds options with seeding, runs `MigrateAsync`), `Persistence/{MigrationAndSeedingTests,ExchangeRatePersistenceTests,ProductRepositoryTests}.cs`.
 

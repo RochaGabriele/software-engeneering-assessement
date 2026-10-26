@@ -360,7 +360,7 @@ The model is current state plus append-only history ([ADR-0001](../adr/0001-exch
 - **Value objects.** `Currency` and `Sku` map to TEXT through converters. `Money` maps to a complex property (`Price` + `PriceCurrency`).
 - **Schema evolution.** EF Core **Migrations** replace `EnsureCreated`, which never adds tables to an existing database ([ADR-0004](../adr/0004-ef-core-migrations.md)). They are applied at startup with `MigrateAsync`. The demo seed (same SKUs and prices as the baseline) moves to EF Core's `UseSeeding`/`UseAsyncSeeding` and stays idempotent.
 - **Connection string.** It moves to configuration (`ConnectionStrings:Demo`). The relative path stays: `dotnet run` uses the project folder as the working directory and content root, so `demo.db` lands in `src/Demo.Api` as before (verified).
-- **Tooling.** `dotnet-ef` is pinned in a local tool manifest (`.config/dotnet-tools.json`), so `dotnet tool restore` gives every developer the same version.
+- **Tooling.** `dotnet-ef` is pinned in a local tool manifest (`dotnet-tools.json`), so `dotnet tool restore` gives every developer the same version.
 
 ---
 

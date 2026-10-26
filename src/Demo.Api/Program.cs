@@ -1,11 +1,8 @@
-using Demo.Application.Modules;
-using Demo.Domain.Common.Services;
+using Demo.Application;
 using Demo.Domain.Modules.Inventory;
 using Demo.Infrastructure;
-using Demo.Infrastructure.Messaging;
 using Demo.Infrastructure.Persistence;
 using Hangfire;
-using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,19 +11,8 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Setup Database
-builder.Services.AddDbContext<DemoDbContext>(options =>
-    options.UseSqlite("Data Source=demo.db"));
-
-// Setup Repositories and Infra
-builder.Services.AddTransient<IProductRepository, ProductRepository>();
-builder.Services.AddTransient<IMessagePublisher, FakeMessagePublisher>();
-
-// Setup Modules
-builder.Services.AddTransient<IInventoryModule, InventoryModule>();
-
-// Setup Hangfire via Infrastructure
-builder.Services.AddInfrastructureHangfire();
+builder.Services.AddApplication(builder.Configuration);
+builder.Services.AddInfrastructure(builder.Configuration);
 
 var app = builder.Build();
 

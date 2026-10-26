@@ -8,6 +8,7 @@
     <!-- 10.0.5 -> 10.0.14 resolves SQLitePCLRaw 2.1.13 (GHSA-2m69-gcr7-jv3q affects <= 2.1.11). -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.14" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.11.0" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.14" />
     <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.14" />
     <!-- 10.1.7 -> 10.3.1 resolves Microsoft.OpenApi 2.7.5 (GHSA-v5pm-xwqc-g5wc affects <= 2.7.4). -->

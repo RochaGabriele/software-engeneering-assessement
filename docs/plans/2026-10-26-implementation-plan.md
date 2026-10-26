@@ -1269,3 +1269,20 @@ internal sealed class ExchangeRatesSyncScheduler : IHostedService
 ## Verification log
 
 Entries are added during Task 16 (manual checks against the running app) and Task 17 (final command outputs). Each entry records the date, the exact request or command, and the observed result.
+
+### 2026-10-26: Task 16, manual checks without an App ID (commit `85757c5`)
+
+Fresh database (`demo.db*` deleted), `cd src/Demo.Api && dotnet run --launch-profile http`, no user-secrets configured.
+
+| Check | Observed |
+|---|---|
+| Startup log | `Applying migration '20261026233845_InitialCreate'`; `Recurring job exchange-rates-sync scheduled with cron '0 6 * * 1' (UTC)`; `No exchange rates stored yet; enqueued an initial synchronization` |
+| Bootstrap run | Fails with `The Open Exchange Rates App ID is not configured…`; Hangfire logs `Retry attempt 1 of 3`; no request to openexchangerates.org in the log |
+| `/hangfire/recurring` | `exchange-rates-sync`, `0 6 * * 1`, next execution 2026-11-02 06:00 UTC (Monday) |
+| `/swagger/v1/swagger.json` | `GET /api/products` (query `currency`; 200/400/503), `GET /api/products/{sku}` (200/404) |
+| `GET /api/products` | `200` `[{"sku":"SKU1","name":"Name","price":103.30,"currency":"USD"},{"sku":"SKU2","name":"Name","price":102.20,"currency":"USD"}]` |
+| `GET /api/products?currency=EUR` and `=eur` (no rate yet) | `503` `application/problem+json`, `code: exchange_rate.unavailable`, detail names `USD/EUR` |
+| `GET /api/products?currency=JPY` | `400`, `code: currency.unsupported`, lists `USD, EUR, CAD, GBP, CHF` |
+| `GET /api/products?currency=EURO` | `400`, `code: currency.invalid` |
+| `GET /api/products/SKU2` | `200` `{"sku":"SKU2","name":"Name","price":102.20,"currency":"USD"}` |
+| `GET /api/products/NOPE` | `404` `application/problem+json`, `code: product.not_found`, `traceId`, no stack trace |

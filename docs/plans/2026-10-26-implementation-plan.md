@@ -1286,3 +1286,14 @@ Fresh database (`demo.db*` deleted), `cd src/Demo.Api && dotnet run --launch-pro
 | `GET /api/products?currency=EURO` | `400`, `code: currency.invalid` |
 | `GET /api/products/SKU2` | `200` `{"sku":"SKU2","name":"Name","price":102.20,"currency":"USD"}` |
 | `GET /api/products/NOPE` | `404` `application/problem+json`, `code: product.not_found`, `traceId`, no stack trace |
+
+### 2026-10-26: Task 17, final verification (from the repository root, after `dotnet clean`)
+
+| Command / check | Result |
+|---|---|
+| `dotnet build` | `0 Warning(s)`, `0 Error(s)` (baseline: 8 × NU1903) |
+| `dotnet test` | `Demo.UnitTests` 92 passed; `Demo.IntegrationTests` 55 passed; 0 failed |
+| `dotnet list package --vulnerable --include-transitive` | No vulnerable packages in any of the 6 projects |
+| Dependency rule (NFR-04) | Domain → none; Application → Domain; Infrastructure → Application; Api → Application + Infrastructure. No `Demo.Infrastructure`, EF Core or Hangfire import in Domain/Application |
+| Secrets (DR-09) | No `AppId` in any `appsettings*.json`; the API project only carries a `UserSecretsId` |
+| Traceability (spec §14) | Every FR/DR/NFR maps to at least one named test, except two noted items. FR-T2-01 also needs the live smoke test, which requires an App ID. DR-12's HTTP-level retry is the library's standard resilience pipeline, verified by configuration; the job-level retry is pinned by `Execute_NeverOverlapsAndIsRetriedThreeTimes` |

@@ -905,7 +905,7 @@ public sealed class SupportedCurrencies
 public static class ExchangeRateErrors
 {
     public static Error UnsupportedCurrency(Currency currency, IEnumerable<Currency> supported);   // Validation, "currency.unsupported"
-    public static Error UnsupportedConversion(Currency from, Currency to);                         // Validation, "conversion.unsupported"
+    public static Error UnsupportedConversion(Currency from, Currency to, Currency baseCurrency);   // Validation, "conversion.unsupported"
     public static Error RateUnavailable(CurrencyPair pair);                                        // Unavailable, "exchange_rate.unavailable"
     public static Error NoRatesApplied(IEnumerable<Currency> missing);                             // Unavailable, "exchange_rate.no_rates_applied"
 }
@@ -921,7 +921,7 @@ public interface ICurrencyConversionReader
 `CurrencyConversionReader.GetConversionAsync` evaluates in this order:
 1. unsupported `from` or `to` → `UnsupportedCurrency`;
 2. `from == to` → `Identity`, without touching storage;
-3. `from != Base` → `UnsupportedConversion`;
+3. `from != Base` → `UnsupportedConversion(from, to, Base)`;
 4. repository lookup → `ToConversion()` or `RateUnavailable`.
 
 ### A.5 Exchange Rates application: port and sync use case

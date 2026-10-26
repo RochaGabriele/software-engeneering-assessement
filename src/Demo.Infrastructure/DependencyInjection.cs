@@ -3,6 +3,7 @@ using Demo.Application.Modules.ExchangeRates.Ports;
 using Demo.Domain.Common.Services;
 using Demo.Domain.Modules.ExchangeRates;
 using Demo.Domain.Modules.Inventory;
+using Demo.Infrastructure.BackgroundJobs;
 using Demo.Infrastructure.ExchangeRates.OpenExchangeRates;
 using Demo.Infrastructure.Messaging;
 using Demo.Infrastructure.Persistence;
@@ -38,8 +39,22 @@ public static class DependencyInjection
         AddOpenExchangeRates(services, configuration);
 
         services.AddInfrastructureHangfire();
+        AddExchangeRateSync(services, configuration);
 
         return services;
+    }
+
+    private static void AddExchangeRateSync(IServiceCollection services, IConfiguration configuration)
+    {
+        // An invalid cron expression is rejected by Hangfire when the scheduler registers the job at startup.
+        services.AddOptions<ExchangeRateSyncOptions>()
+            .Bind(configuration.GetSection(ExchangeRateSyncOptions.SectionName))
+            .Validate(
+                options => TimeZoneInfo.TryFindSystemTimeZoneById(options.TimeZone, out _),
+                $"{ExchangeRateSyncOptions.SectionName}:{nameof(ExchangeRateSyncOptions.TimeZone)} is not a known time zone.")
+            .ValidateOnStart();
+
+        services.AddHostedService<ExchangeRatesSyncScheduler>();
     }
 
     private static void AddOpenExchangeRates(IServiceCollection services, IConfiguration configuration)

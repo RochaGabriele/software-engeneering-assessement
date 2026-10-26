@@ -12,9 +12,8 @@ The baseline lets exceptions escape: an unknown SKU returns **500 with a stack t
 - **Application layer.** Handlers return `Result<T>`, which carries either a value or an `Error(Code, Message, Type)`. `ErrorType` is `Validation`, `NotFound` or `Unavailable`.
 - **Exceptions** are reserved for programming errors and invariant violations (`DomainException`) and for infrastructure failures.
 - **HTTP layer.**
-  - `AddProblemDetails()` and an `IExceptionHandler` produce RFC 9457 `application/problem+json` for every error, including unhandled exceptions.
-  - Unhandled exceptions return 500 with a `traceId` and no stack trace outside Development.
-  - Controllers map `ErrorType` → `Validation` 400, `NotFound` 404, `Unavailable` 503.
+  - `AddProblemDetails()` + `UseExceptionHandler()` + `UseStatusCodePages()` make the framework emit RFC 9457 `application/problem+json`. This covers unhandled exceptions (500 with `traceId`, no stack trace) and empty error responses such as unknown routes. No custom exception handler is needed.
+  - Controllers map `ErrorType` → `Validation` 400, `NotFound` 404, `Unavailable` 503, and add the error's stable `code` as a ProblemDetails extension.
 
 | Case | Status | Rationale |
 |---|---|---|

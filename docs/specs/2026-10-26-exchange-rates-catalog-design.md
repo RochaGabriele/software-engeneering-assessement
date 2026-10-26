@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | In review |
+| **Status** | Approved |
 | **Date** | 2026-10-26 |
 | **Covers** | Task 1 (fixes in the path of Tasks 2–3), Task 2, Task 3 |
 | **Baseline** | Commit `a456096` (original starter code, unmodified) |
@@ -68,7 +68,7 @@ Authentication, pagination, caching, domain or integration events, persistent Ha
 |---|---|
 | NFR-01 | `dotnet build` and `dotnet test` succeed **from the repository root**, as the README states (baseline: `MSB1003`) |
 | NFR-02 | The build is free of warnings at delivery. Warnings are not escalated to errors, so a NuGet advisory published after delivery cannot break a reviewer's build |
-| NFR-03 | Money and rates are `decimal` end to end (JSON → domain → database). No `double` anywhere |
+| NFR-03 | Money and rates are `decimal` end to end (JSON → domain → database, stored as exact TEXT in SQLite). No `double` anywhere |
 | NFR-04 | Dependency rule: Domain → nothing; Application → Domain; Infrastructure → Application; Api is the composition root |
 | NFR-05 | Unexpected errors return 500 ProblemDetails with a `traceId` and no stack trace outside Development |
 | NFR-06 | Automated tests never call the live OXR API |
@@ -110,7 +110,7 @@ flowchart LR
     XR -. uses .-> SK
 ```
 
-- **Inventory** (existing module name, kept to avoid churn) owns `Product`. It never sees the Exchange Rates aggregates or repositories. It asks the published contract for a `CurrencyConversion` value ([ADR-0002](../adr/0002-shared-kernel-and-conversion-contract.md)).
+- **Inventory** (existing module name, kept to avoid churn) owns `Product`. It never sees the Exchange Rates aggregates or repositories. It asks the published contract for a `CurrencyConversion` value, and for the list of supported currencies used in error messages ([ADR-0002](../adr/0002-shared-kernel-and-conversion-contract.md)).
 - **Exchange Rates** owns rate state and its history, and translates the provider's model at the boundary.
 - The **Shared Kernel** holds only the concepts both contexts genuinely share: `Currency`, `Money`, `CurrencyConversion`.
 
@@ -120,7 +120,7 @@ flowchart LR
 |---|---|---|---|
 | `Currency` | Value object | Shared | ISO 4217 format: exactly 3 ASCII letters, normalized to upper case. `TryParse` for user input; `Currency.USD` is the catalog base |
 | `Money` | Value object | Shared | `Amount` (`decimal`) + `Currency`. Equality by value |
-| `CurrencyConversion` | Value object | Shared | `From`, `To`, `Rate > 0`, `AsOf`. `Convert(Money)` requires `money.Currency == From`. Returns `Money(round(amount × rate), To)` per DR-04. `Identity(c)` has rate 1 |
+| `CurrencyConversion` | Value object | Shared | `From`, `To`, `Rate > 0`, `AsOf` (provider publication time; `null` for identity). `Convert(Money)` requires `money.Currency == From`. Returns `Money(round(amount × rate), To)` per DR-04. `Identity(c)` has rate 1 |
 | `Sku` | Value object | Inventory | Non-empty, trimmed, ≤ 64 chars |
 | `Product` | Aggregate root | Inventory | `Sku` (identity), `Name` (non-empty, ≤ 200), `Price: Money` with amount ≥ 0 and currency = catalog base (USD). Private setters; created through a factory |
 | `CurrencyPair` | Value object | Exchange Rates | `Base ≠ Quote` |
@@ -171,11 +171,13 @@ src/
     Persistence/                          DemoDbContext (: IUnitOfWork), entity configurations,
                                           repositories, Migrations/, seeding
     ExchangeRates/OpenExchangeRates/      typed HttpClient adapter (ACL) + options
-    BackgroundJobs/                       ExchangeRatesSyncJob, recurring-job registrar
+    BackgroundJobs/                       ExchangeRatesSyncJob, ExchangeRatesSyncScheduler (hosted service
+                                          that registers the recurring job and the bootstrap run)
     DependencyInjection.cs                AddInfrastructure()
   Demo.Api/
     Controllers/ProductsController.cs
-    ErrorHandling/                        GlobalExceptionHandler, Result → ProblemDetails mapping
+    ErrorHandling/                        Result → ProblemDetails mapping (unhandled exceptions are
+                                          covered by the built-in exception handler + AddProblemDetails)
     Program.cs                            composition root only
   Demo.UnitTests/                         Domain + Application
   Demo.IntegrationTests/                  Infrastructure + HTTP API
@@ -328,30 +330,37 @@ A plain array keeps faith with "retrieve the entire product catalog" and with th
 
 ### 9.3 Error matrix (RFC 9457, `application/problem+json`)
 
-| Condition | Status | `title` / `detail` |
-|---|---|---|
-| `currency` malformed (`EURO`, `12`) or not supported (`JPY`) | 400 | "Unsupported currency"; detail lists supported codes |
-| Supported currency, no stored rate | 503 | "Exchange rate unavailable"; detail names the pair |
-| Unknown SKU | 404 | "Product not found" |
-| Unhandled exception | 500 | Generic message + `traceId`; no stack trace outside Development |
+Every problem response carries `status`, a `title` per error type, a human-readable `detail`, a stable machine-readable `code` extension and the `traceId`.
+
+| Condition | Status | `code` | `detail` |
+|---|---|---|---|
+| `currency` malformed (`EURO`, `12`) | 400 | `currency.invalid` | Names the value and lists supported codes |
+| `currency` well-formed but not supported (`JPY`) | 400 | `currency.unsupported` | Names the value and lists supported codes |
+| Supported currency, no stored rate | 503 | `exchange_rate.unavailable` | Names the pair (e.g. `USD/EUR`) |
+| Unknown SKU | 404 | `product.not_found` | Names the SKU |
+| Unhandled exception | 500 | none | Generic message from the framework; no stack trace |
 
 ---
 
 ## 10. Persistence
 
-The model is current state plus append-only history ([ADR-0001](../adr/0001-exchange-rates-current-state-plus-history.md)). The `decimal(p,s)` values below are the precisions declared in the EF model. SQLite stores them as TEXT and does not enforce them.
+The model is current state plus append-only history ([ADR-0001](../adr/0001-exchange-rates-current-state-plus-history.md)). Precisions in parentheses are declared in the EF model through `HasPrecision`.
 
 | Table | Columns | Keys / indexes |
 |---|---|---|
-| `Products` | `Sku` TEXT, `Name` TEXT(200), `Price` decimal(18,2), `PriceCurrency` TEXT(3) | PK `Sku` |
-| `ExchangeRates` | `BaseCurrency` TEXT(3), `QuoteCurrency` TEXT(3), `Rate` decimal(18,8), `PublishedAt` INTEGER, `RetrievedAt` INTEGER | PK (`BaseCurrency`, `QuoteCurrency`) |
+| `Products` | `Sku` TEXT, `Name` TEXT(200), `Price` TEXT (decimal 18,2), `PriceCurrency` TEXT(3) | PK `Sku` |
+| `ExchangeRates` | `BaseCurrency` TEXT(3), `QuoteCurrency` TEXT(3), `Rate` TEXT (decimal 18,8), `PublishedAt` INTEGER, `RetrievedAt` INTEGER | PK (`BaseCurrency`, `QuoteCurrency`) |
 | `ExchangeRateHistory` | `Id` INTEGER, same rate columns as above | PK `Id`; **UNIQUE** (`BaseCurrency`, `QuoteCurrency`, `PublishedAt`) |
 
-- **Decimals.** EF Core stores `decimal` as TEXT in SQLite, so precision is preserved. Precision is still declared explicitly: SQLite ignores it, but a future SQL Server move would otherwise truncate rates (`decimal(18,2)` would turn `0.921234` into `0.92`).
+- **Decimals.** Precision is declared with `HasPrecision`, never with `HasColumnType("decimal(...)")`.
+  - In SQLite, a `decimal(18,2)` column type gets NUMERIC affinity, so the engine silently converts the text EF writes into a binary floating-point REAL. This was verified on the baseline: `typeof(Price) = 'real'`.
+  - With `HasPrecision`, EF stores the value as TEXT, which is exact. This was verified with a probe on EF Core 10.0.14.
+  - The declared precision still matters for portability: on SQL Server, a `decimal(18,2)` rate column would turn `0.921234` into `0.92`.
 - **Timestamps.** `DateTimeOffset` maps to INTEGER (UNIX milliseconds) through a value converter. The EF Core SQLite provider cannot translate ordering or comparison on `DateTimeOffset`.
 - **Value objects.** `Currency` and `Sku` map to TEXT through converters. `Money` maps to a complex property (`Price` + `PriceCurrency`).
 - **Schema evolution.** EF Core **Migrations** replace `EnsureCreated`, which never adds tables to an existing database ([ADR-0004](../adr/0004-ef-core-migrations.md)). They are applied at startup with `MigrateAsync`. The demo seed (same SKUs and prices as the baseline) moves to EF Core's `UseSeeding`/`UseAsyncSeeding` and stays idempotent.
-- **Connection string.** It moves to configuration (`ConnectionStrings:Demo`). A relative SQLite path resolves against the host content root, so the file location no longer depends on the shell's working directory.
+- **Connection string.** It moves to configuration (`ConnectionStrings:Demo`). The relative path stays: `dotnet run` uses the project folder as the working directory and content root, so `demo.db` lands in `src/Demo.Api` as before (verified).
+- **Tooling.** `dotnet-ef` is pinned in a local tool manifest (`.config/dotnet-tools.json`), so `dotnet tool restore` gives every developer the same version.
 
 ---
 
@@ -359,7 +368,7 @@ The model is current state plus append-only history ([ADR-0001](../adr/0001-exch
 
 | Key | Default | Notes |
 |---|---|---|
-| `ConnectionStrings:Demo` | `Data Source=demo.db` | relative to content root |
+| `ConnectionStrings:Demo` | `Data Source=demo.db` | resolved from the project folder under `dotnet run` |
 | `ExchangeRates:TargetCurrencies` | `["EUR","CAD","GBP","CHF"]` | validated at startup: valid codes, distinct, not USD, non-empty |
 | `ExchangeRates:Sync:Enabled` | `true` | integration tests set `false` |
 | `ExchangeRates:Sync:Cron` | `0 6 * * 1` | validated at startup |
@@ -397,6 +406,7 @@ Each fix is justified by a Task 2/3 need. The findings document describes the **
 | Fix | Why it is in scope |
 |---|---|
 | `EnsureCreated` → Migrations + `UseAsyncSeeding` | New tables would never be created on an existing database |
+| `HasColumnType("decimal(18,2)")` → `HasPrecision(18, 2)` | The baseline stores prices as binary floating-point REAL. Task 3 computes with those prices, and Task 2 stores rates the same way |
 | Rich `Product` (`Sku`, `Money`, invariants) and DTO responses | Task 3 reads and converts `Product.Price`, and the response must state the currency |
 | Global ProblemDetails, 404 for unknown SKU | Task 3 introduces new error cases (400/503) that need one consistent error contract |
 | `Program.cs` reduced to composition (`AddApplication`/`AddInfrastructure`), config-based connection string | Tasks 2–3 add many registrations; inline registration would not scale |

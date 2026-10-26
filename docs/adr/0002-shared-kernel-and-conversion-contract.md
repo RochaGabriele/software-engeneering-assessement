@@ -14,6 +14,7 @@ Task 3 makes the Inventory context (products) depend on data owned by the new Ex
   - It returns `Identity` when `from == to`.
   - It returns `Unsupported` for currencies outside the configured set.
   - It returns `Unavailable` when no rate is stored.
+  - It also exposes `SupportedCurrencies`, so callers can tell a client what is accepted without reading configuration themselves.
 - Inventory's catalog handler depends only on that contract and the shared value objects. It never sees `ExchangeRate`, its repository or its tables.
 - The conversion arithmetic is a pure function on a value object, unit-testable without I/O.
 

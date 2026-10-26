@@ -10,13 +10,14 @@ Currency conversion is where small mistakes become visible money errors. Several
 - **Direction.** OXR quotes "1 USD = *r* EUR". Dividing instead of multiplying inverts every price.
 - **Binary floating point.** Deserializing JSON numbers into `double` introduces representation error before any arithmetic happens.
 - **Default rounding.** `Math.Round` uses banker's rounding (`MidpointRounding.ToEven`) by default, so `0.125` becomes `0.12`. Consumer price display expects `0.13`.
-- **Precision.** The baseline maps `Product.Price` as `decimal(18,2)`. Reusing that for rates would truncate `0.921234` to `0.92` as soon as the database is not SQLite (SQLite ignores the declaration and stores TEXT).
+- **Storage type.** The baseline maps `Product.Price` with `HasColumnType("decimal(18,2)")`. In SQLite that type name gets NUMERIC affinity, so the engine converts the TEXT that EF writes into a binary floating-point REAL. On the baseline database `typeof(Price)` returns `'real'`: the `decimal` guarantee is lost at rest.
+- **Precision.** Reusing `decimal(18,2)` for rates would also truncate `0.921234` to `0.92` on any engine that enforces it, such as SQL Server.
 - **Scale.** SQLite returns `103.30` as `103.3`, so JSON output alternates between `103.3` and `95.04`, while the task's example shows `95.50`.
 
 ## Decision
 
 - `decimal` everywhere: JSON deserialization, domain, persistence.
-- Rate column precision is declared explicitly as `decimal(18,8)`. Product prices keep `decimal(18,2)`.
+- Precision is declared with `HasPrecision`, never with `HasColumnType("decimal(...)")`: rates `(18, 8)`, product prices `(18, 2)`. EF then stores TEXT in SQLite, which is exact. A probe on EF Core 10.0.14 confirmed `typeof = 'text'` and a lossless round-trip of `0.92123456`.
 - Conversion in `CurrencyConversion.Convert`:
   - `converted = Math.Round(amount × rate, 2, MidpointRounding.AwayFromZero)`;
   - the full-precision rate is used and rounding happens **once**, at the end;

@@ -4,6 +4,7 @@ using Demo.Application.Modules.ExchangeRates.Contracts;
 using Demo.Application.Modules.ExchangeRates.SynchronizeExchangeRates;
 using Demo.Application.Modules.Inventory;
 using Demo.Application.Modules.Inventory.GetProductBySku;
+using Demo.Application.Modules.Inventory.GetProductCatalog;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -18,6 +19,7 @@ public static class DependencyInjection
         services.TryAddSingleton(TimeProvider.System);
 
         services.AddScoped<IQueryHandler<GetProductBySkuQuery, Result<ProductDto>>, GetProductBySkuQueryHandler>();
+        services.AddScoped<IQueryHandler<GetProductCatalogQuery, Result<IReadOnlyList<ProductDto>>>, GetProductCatalogQueryHandler>();
 
         AddExchangeRates(services, configuration);
 

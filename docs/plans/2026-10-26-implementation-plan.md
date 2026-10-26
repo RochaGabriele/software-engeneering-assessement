@@ -78,7 +78,7 @@ src/Demo.Infrastructure/
   ExchangeRates/OpenExchangeRates/OpenExchangeRatesOptions.cs  OpenExchangeRatesClient.cs  OpenExchangeRatesResponses.cs  NEW
   BackgroundJobs/ExchangeRateSyncOptions.cs  ExchangeRatesSyncJob.cs  ExchangeRatesSyncScheduler.cs  NEW
 src/Demo.Api/
-  Program.cs                             REWRITTEN (composition root only; `public partial class Program`)
+  Program.cs                             REWRITTEN (composition root only)
   Controllers/ProductsController.cs      REWRITTEN (namespace Demo.Api.Controllers, class ProductsController)
   ErrorHandling/ErrorResults.cs          NEW
   appsettings.json                       MODIFIED
@@ -649,7 +649,7 @@ services.AddHttpClient<IExchangeRateProvider, OpenExchangeRatesClient>((sp, clie
 
 **Files:**
 - Application: `DependencyInjection.cs` registers `IQueryHandler<GetProductCatalogQuery, Result<IReadOnlyList<ProductDto>>>`.
-- Api: `ProductsController.cs` gets `GET` with `[FromQuery] string? currency`; `Program.cs` ends with `public partial class Program;`.
+- Api: `ProductsController.cs` gets `GET` with `[FromQuery] string? currency`. (No `public partial class Program;` is needed: ASP.NET Core 10 generates a public `Program` for top-level statements, verified while implementing.)
 - Tests: `src/Demo.IntegrationTests/Api/{DemoApiFactory,ProductsEndpointTests}.cs`.
 
 `DemoApiFactory : WebApplicationFactory<Program>, IAsyncLifetime`:
@@ -1154,8 +1154,7 @@ public static class ErrorResults
 `Program.cs` (final):
 1. `AddControllers`, `AddEndpointsApiExplorer`, `AddSwaggerGen`, `AddProblemDetails`, `AddApplication(builder.Configuration)`, `AddInfrastructure(builder.Configuration)`;
 2. `UseExceptionHandler()`, `UseStatusCodePages()`, Swagger in Development, `UseHttpsRedirection()`, `UseHangfireDashboard()`, `MapControllers()`;
-3. `await app.Services.MigrateDatabaseAsync()`, `await app.RunAsync()`;
-4. `public partial class Program;`.
+3. `await app.Services.MigrateDatabaseAsync()`, `await app.RunAsync()`.
 
 ### B.5 Open Exchange Rates client
 

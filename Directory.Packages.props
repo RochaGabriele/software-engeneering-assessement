@@ -1,0 +1,25 @@
+<Project>
+  <!-- Central Package Management: every package version lives here (Task 1 finding F-21). -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- 10.0.5 -> 10.0.14 resolves SQLitePCLRaw 2.1.13 (GHSA-2m69-gcr7-jv3q affects <= 2.1.11). -->
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.14" />
+    <!-- 10.1.7 -> 10.3.1 resolves Microsoft.OpenApi 2.7.5 (GHSA-v5pm-xwqc-g5wc affects <= 2.7.4). -->
+    <PackageVersion Include="Swashbuckle.AspNetCore" Version="10.3.1" />
+    <PackageVersion Include="Hangfire.AspNetCore" Version="1.8.23" />
+    <PackageVersion Include="Hangfire.MemoryStorage" Version="1.8.1.2" />
+    <!-- Transitive pin: Hangfire.Core accepts Newtonsoft.Json >= 11.0.1 (GHSA-5crp-9r3c-p9vr affects < 13.0.1). -->
+    <PackageVersion Include="Newtonsoft.Json" Version="13.0.4" />
+  </ItemGroup>
+  <ItemGroup Label="Tests">
+    <PackageVersion Include="coverlet.collector" Version="6.0.4" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+</Project>

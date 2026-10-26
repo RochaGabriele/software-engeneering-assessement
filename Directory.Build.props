@@ -1,0 +1,9 @@
+<Project>
+  <!-- Settings shared by every project. Warnings are intentionally not escalated to errors:
+       a NuGet advisory published after delivery must not break a reviewer's build (spec NFR-02). -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+</Project>

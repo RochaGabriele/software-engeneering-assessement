@@ -213,3 +213,5 @@ FakesAssemblies/
 *.db
 *.db-shm
 *.db-wal
+# macOS Finder metadata
+.DS_Store

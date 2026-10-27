@@ -728,7 +728,7 @@ The test uses `DemoApiFactory` with `ConfigureTestServices(s => s.AddSingleton<I
 | `GET /api/products?currency=EUR` before any rate | `503` ProblemDetails |
 | `GET /api/products/NOPE` | `404` ProblemDetails |
 
-- [ ] **Step 2: Live smoke test** (only if an App ID is available). *Pending: requires the reviewer's or candidate's own App ID.*
+- [x] **Step 2: Live smoke test** (only if an App ID is available). Done on 2026-10-27; see the Verification log.
   - Set it via user-secrets, restart, and let the bootstrap run or click *Trigger now*.
   - The job succeeds.
   - `GET ?currency=EUR|CAD|GBP|CHF` → `200` with converted prices.
@@ -1296,4 +1296,17 @@ Fresh database (`demo.db*` deleted), `cd src/Demo.Api && dotnet run --launch-pro
 | `dotnet list package --vulnerable --include-transitive` | No vulnerable packages in any of the 6 projects |
 | Dependency rule (NFR-04) | Domain → none; Application → Domain; Infrastructure → Application; Api → Application + Infrastructure. No `Demo.Infrastructure`, EF Core or Hangfire import in Domain/Application |
 | Secrets (DR-09) | No `AppId` in any `appsettings*.json`; the API project only carries a `UserSecretsId` |
-| Traceability (spec §14) | Every FR/DR/NFR maps to at least one named test, except two noted items. FR-T2-01 also needs the live smoke test, which requires an App ID. DR-12's HTTP-level retry is the library's standard resilience pipeline, verified by configuration; the job-level retry is pinned by `Execute_NeverOverlapsAndIsRetriedThreeTimes` |
+| Traceability (spec §14) | Every FR/DR/NFR maps to at least one named test. FR-T2-01 is also covered by the live smoke test below. DR-12's HTTP-level retry is the library's standard resilience pipeline, verified by configuration; the job-level retry is pinned by `Execute_NeverOverlapsAndIsRetriedThreeTimes` |
+
+### 2026-10-27: Task 16, live smoke test against Open Exchange Rates (commit `f071ec5`)
+
+App ID provided through user-secrets (value never printed or logged). Fresh database, `dotnet run --launch-profile http`.
+
+| Check | Observed |
+|---|---|
+| Bootstrap run | `GET https://openexchangerates.org/api/latest.json?*` (the query string is redacted by .NET HttpClient logging; the App ID travels in the `Authorization` header) → `200` in 517 ms; `Exchange rates published at 2026-10-27T00:00:00Z synchronized. Applied: 4; unchanged: 0; missing: 0` |
+| Stored current rates | USD/EUR `0.894958`, USD/CAD `1.401321`, USD/GBP `0.749375`, USD/CHF `0.82772`; `typeof(Rate) = text`; published `2026-10-27 00:00:00Z` |
+| History | 4 rows |
+| `GET /api/products?currency=EUR` | `200` SKU1 `92.45` (103.30 × 0.894958 = 92.449…), SKU2 `91.46` |
+| `?currency=CAD` / `GBP` / `CHF` | `144.76`/`143.22` CAD, `77.41`/`76.59` GBP, `85.50`/`84.59` CHF |
+| Second run (`POST /hangfire/recurring/trigger`, same publication) | `204`; provider `200`; `Applied: 0; unchanged: 4; missing: 0`; history still 4 rows (idempotent) |

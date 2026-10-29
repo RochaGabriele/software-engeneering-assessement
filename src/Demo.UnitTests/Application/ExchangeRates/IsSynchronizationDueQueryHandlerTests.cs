@@ -8,62 +8,76 @@ namespace Demo.UnitTests.Application.ExchangeRates;
 
 public class IsSynchronizationDueQueryHandlerTests
 {
-    // Tuesday after the scheduled Monday 06:00 UTC run.
-    private static readonly DateTimeOffset Now = new(2026, 10, 27, 9, 0, 0, TimeSpan.Zero);
-    private static readonly TimeSpan StaleAfter = TimeSpan.FromDays(7);
+    // The Monday 06:00 UTC run that should have happened most recently.
+    private static readonly DateTimeOffset LastScheduledRun = new(2026, 10, 26, 6, 0, 0, TimeSpan.Zero);
 
     private readonly InMemoryExchangeRateRepository _exchangeRates = new();
 
     [Fact]
     public async Task NothingStored_IsDue()
     {
-        Assert.True(await IsDueAsync());
+        Assert.True(await IsDueAsync(LastScheduledRun));
     }
 
     [Fact]
-    public async Task EverySupportedRateRetrievedRecently_IsNotDue()
+    public async Task EveryRateRetrievedAfterTheLastScheduledRun_IsNotDue()
     {
-        Store(Now.AddDays(-1), "EUR", "CAD", "GBP", "CHF");
+        Store(LastScheduledRun.AddSeconds(20), "EUR", "CAD", "GBP", "CHF");
 
-        Assert.False(await IsDueAsync());
+        Assert.False(await IsDueAsync(LastScheduledRun));
+    }
+
+    [Fact]
+    public async Task ARateRetrievedBeforeTheLastScheduledRun_IsDue()
+    {
+        // The app was down at Monday 06:00, so last week's rates were never refreshed.
+        Store(LastScheduledRun.AddDays(-7).AddSeconds(20), "EUR", "CAD", "GBP", "CHF");
+
+        Assert.True(await IsDueAsync(LastScheduledRun));
+    }
+
+    [Fact]
+    public async Task AnOffScheduleRunLastWeek_DoesNotHideAMissedMonday()
+    {
+        // A manual trigger on Thursday is only four days old, but the Monday run after it never happened.
+        Store(LastScheduledRun.AddDays(-4), "EUR", "CAD", "GBP", "CHF");
+
+        Assert.True(await IsDueAsync(LastScheduledRun));
     }
 
     [Fact]
     public async Task ASupportedCurrencyWithoutRate_IsDue()
     {
         // e.g. a currency newly added to the configuration, or one the provider left out of the last run.
-        Store(Now.AddDays(-1), "EUR", "CAD", "GBP");
+        Store(LastScheduledRun.AddSeconds(20), "EUR", "CAD", "GBP");
 
-        Assert.True(await IsDueAsync());
-    }
-
-    [Fact]
-    public async Task ARateOlderThanTheSchedulePeriod_IsDue()
-    {
-        // Last synced the previous Monday 06:00; the app was down at this Monday 06:00, so that run never happened.
-        Store(Now.AddDays(-1), "EUR", "CAD", "GBP");
-        Store(Now.AddDays(-8).AddHours(-3), "CHF");
-
-        Assert.True(await IsDueAsync());
+        Assert.True(await IsDueAsync(LastScheduledRun));
     }
 
     [Fact]
     public async Task RatesForCurrenciesNoLongerConfigured_AreIgnored()
     {
-        Store(Now.AddDays(-1), "EUR", "CAD", "GBP", "CHF");
-        Store(Now.AddDays(-30), "JPY");
+        Store(LastScheduledRun.AddSeconds(20), "EUR", "CAD", "GBP", "CHF");
+        Store(LastScheduledRun.AddDays(-30), "JPY");
 
-        Assert.False(await IsDueAsync());
+        Assert.False(await IsDueAsync(LastScheduledRun));
     }
 
-    private async Task<bool> IsDueAsync()
+    [Fact]
+    public async Task NoScheduledRunYet_OnlyAMissingRateMakesItDue()
+    {
+        Store(LastScheduledRun.AddDays(-30), "EUR", "CAD", "GBP", "CHF");
+
+        Assert.False(await IsDueAsync(lastScheduledRun: null));
+    }
+
+    private async Task<bool> IsDueAsync(DateTimeOffset? lastScheduledRun)
     {
         var handler = new IsSynchronizationDueQueryHandler(
             _exchangeRates,
-            SupportedCurrencies.From(new ExchangeRatesOptions { TargetCurrencies = ["EUR", "CAD", "GBP", "CHF"] }),
-            new FixedTimeProvider(Now));
+            SupportedCurrencies.From(new ExchangeRatesOptions { TargetCurrencies = ["EUR", "CAD", "GBP", "CHF"] }));
 
-        return await handler.HandleAsync(new IsSynchronizationDueQuery(StaleAfter), CancellationToken.None);
+        return await handler.HandleAsync(new IsSynchronizationDueQuery(lastScheduledRun), CancellationToken.None);
     }
 
     private void Store(DateTimeOffset retrievedAt, params string[] quoteCurrencies)

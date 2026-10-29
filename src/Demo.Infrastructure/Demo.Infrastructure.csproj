@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <PackageReference Include="Cronos" />
     <PackageReference Include="Hangfire.AspNetCore" />
     <PackageReference Include="Hangfire.MemoryStorage" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">

@@ -12,11 +12,9 @@ public sealed class ExchangeRateSyncOptions
     public string TimeZone { get; init; } = "UTC";
 
     /// <summary>
-    /// On startup, enqueue one immediate run when a supported currency has no rate or a stale one: a fresh deployment,
-    /// a newly configured currency, or a scheduled run missed while the app was down (MemoryStorage keeps no history).
+    /// On startup, enqueue one immediate run when a supported currency has no rate, or was last retrieved before the most
+    /// recent scheduled occurrence: a fresh deployment, a newly configured currency, or a run missed while the app was
+    /// down (MemoryStorage keeps no execution history, so Hangfire cannot detect that itself).
     /// </summary>
     public bool CatchUpOnStartup { get; init; } = true;
-
-    /// <summary>Age after which a stored rate counts as missed. Defaults to one schedule period (a week).</summary>
-    public TimeSpan StaleAfter { get; init; } = TimeSpan.FromDays(7);
 }

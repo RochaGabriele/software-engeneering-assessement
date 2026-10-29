@@ -52,9 +52,6 @@ public static class DependencyInjection
             .Validate(
                 options => TimeZoneInfo.TryFindSystemTimeZoneById(options.TimeZone, out _),
                 $"{ExchangeRateSyncOptions.SectionName}:{nameof(ExchangeRateSyncOptions.TimeZone)} is not a known time zone.")
-            .Validate(
-                options => options.StaleAfter > TimeSpan.Zero,
-                $"{ExchangeRateSyncOptions.SectionName}:{nameof(ExchangeRateSyncOptions.StaleAfter)} must be positive.")
             .ValidateOnStart();
 
         services.AddHostedService<ExchangeRatesSyncScheduler>();

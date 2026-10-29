@@ -12,6 +12,8 @@ namespace Demo.IntegrationTests.BackgroundJobs;
 
 public class ExchangeRatesSyncSchedulerTests
 {
+    private static readonly DateTimeOffset Now = new(2026, 10, 27, 9, 0, 0, TimeSpan.Zero);
+
     private readonly MemoryStorage _storage = new();
     private readonly SynchronizationDueStub _synchronizationDue = new();
 
@@ -58,11 +60,12 @@ public class ExchangeRatesSyncSchedulerTests
     }
 
     [Fact]
-    public async Task Start_AsksWhetherDueWithTheConfiguredStaleness()
+    public async Task Start_AsksWhetherDueSinceTheLastScheduledRun()
     {
-        await StartAsync(new ExchangeRateSyncOptions { StaleAfter = TimeSpan.FromDays(2) });
+        // Tuesday 09:00 UTC: the last Monday 06:00 UTC occurrence is the day before.
+        await StartAsync(new ExchangeRateSyncOptions());
 
-        Assert.Equal(TimeSpan.FromDays(2), _synchronizationDue.ReceivedQuery?.StaleAfter);
+        Assert.Equal(new DateTimeOffset(2026, 10, 26, 6, 0, 0, TimeSpan.Zero), _synchronizationDue.ReceivedQuery?.LastScheduledRunAt);
     }
 
     [Fact]
@@ -116,6 +119,7 @@ public class ExchangeRatesSyncSchedulerTests
             new BackgroundJobClient(_storage),
             scopeFactory,
             Options.Create(options),
+            new FixedTimeProvider(Now),
             NullLogger<ExchangeRatesSyncScheduler>.Instance);
 
         await scheduler.StartAsync(CancellationToken.None);
@@ -128,6 +132,11 @@ public class ExchangeRatesSyncSchedulerTests
     }
 
     private long EnqueuedCount() => _storage.GetMonitoringApi().EnqueuedCount("default");
+
+    private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => utcNow;
+    }
 
     private sealed class SynchronizationDueStub : IQueryHandler<IsSynchronizationDueQuery, bool>
     {

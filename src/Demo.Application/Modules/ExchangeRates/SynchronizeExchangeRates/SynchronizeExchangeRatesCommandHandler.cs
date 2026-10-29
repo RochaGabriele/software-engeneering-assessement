@@ -13,6 +13,9 @@ namespace Demo.Application.Modules.ExchangeRates.SynchronizeExchangeRates;
 public sealed class SynchronizeExchangeRatesCommandHandler
     : ICommandHandler<SynchronizeExchangeRatesCommand, Result<SynchronizationReport>>
 {
+    /// <summary>How far ahead of this server's clock a provider publication time may be (ordinary clock skew).</summary>
+    private static readonly TimeSpan ClockSkewTolerance = TimeSpan.FromHours(1);
+
     private readonly IExchangeRateProvider _provider;
     private readonly IExchangeRateRepository _exchangeRates;
     private readonly IExchangeRateHistoryRepository _history;
@@ -42,15 +45,19 @@ public sealed class SynchronizeExchangeRatesCommandHandler
     public async Task<Result<SynchronizationReport>> HandleAsync(SynchronizeExchangeRatesCommand command, CancellationToken cancellationToken)
     {
         var latest = await _provider.GetLatestRatesAsync(_supportedCurrencies.Base, _supportedCurrencies.Targets, cancellationToken);
+        var retrievedAt = _timeProvider.GetUtcNow();
 
         // Rates on another base would be stored as USD→X and corrupt every converted price; never trust the adapter on this.
         if (latest.Base != _supportedCurrencies.Base)
         {
-            throw new ExchangeRateProviderException(
-                $"The exchange rate provider returned rates based on {latest.Base}, but {_supportedCurrencies.Base} was requested.");
+            return ExchangeRateErrors.UnexpectedBase(_supportedCurrencies.Base, latest.Base);
         }
 
-        var retrievedAt = _timeProvider.GetUtcNow();
+        // A future publication time, once stored, would make every real publication look older and freeze the rates.
+        if (latest.PublishedAt > retrievedAt + ClockSkewTolerance)
+        {
+            return ExchangeRateErrors.PublicationInTheFuture(latest.PublishedAt, retrievedAt);
+        }
 
         var applied = new List<Currency>();
         var unchanged = new List<Currency>();

@@ -48,15 +48,16 @@ public class SynchronizeExchangeRatesCommandHandlerTests
     [Fact]
     public async Task NewerPublication_UpdatesRatesAndAppendsHistory()
     {
-        StoreAllAt(T0);
+        // Last week's rates are stored; the provider now publishes this week's (never later than the clock).
+        StoreAllAt(T0.AddDays(-7));
 
-        var result = await HandleAsync(Rates(T0.AddDays(7), (Eur, 0.93m), (Cad, 1.41m), (Gbp, 0.76m), (Chf, 0.81m)));
+        var result = await HandleAsync(Rates(T0, (Eur, 0.93m), (Cad, 1.41m), (Gbp, 0.76m), (Chf, 0.81m)));
 
         Assert.Equal(4, result.Value.Applied.Count);
         Assert.Equal(0.93m, _exchangeRates.Rates.Single(rate => rate.QuoteCurrency == Eur).Rate);
         Assert.Equal(4, _exchangeRates.Rates.Count);
         Assert.Equal(4, _history.Entries.Count);
-        Assert.All(_history.Entries, entry => Assert.Equal(T0.AddDays(7), entry.PublishedAt));
+        Assert.All(_history.Entries, entry => Assert.Equal(T0, entry.PublishedAt));
         Assert.Equal(1, _unitOfWork.SaveChangesCallCount);
     }
 
@@ -127,17 +128,34 @@ public class SynchronizeExchangeRatesCommandHandlerTests
     public async Task ProviderAnswersInAnotherBase_FailsWithoutStoringAnything()
     {
         // EUR-based values stored as USD→X rates would silently corrupt every converted price.
-        var eurBased = new LatestRates(Eur, T0, new Dictionary<Currency, decimal> { [Cad] = 1.52m, [Gbp] = 0.81m });
-        var handler = CreateHandler(StubExchangeRateProvider.Returning(eurBased));
+        var result = await HandleAsync(new LatestRates(Eur, T0, new Dictionary<Currency, decimal> { [Cad] = 1.52m, [Gbp] = 0.81m }));
 
-        var exception = await Assert.ThrowsAsync<ExchangeRateProviderException>(
-            () => handler.HandleAsync(new SynchronizeExchangeRatesCommand(), CancellationToken.None));
+        Assert.False(result.IsSuccess);
+        Assert.Equal(ErrorType.Unavailable, result.Error!.Type);
+        Assert.Equal("exchange_rate.unexpected_base", result.Error.Code);
+        Assert.Contains("EUR", result.Error.Message);
+        Assert.Contains("USD", result.Error.Message);
+        AssertNothingStored();
+    }
 
-        Assert.Contains("EUR", exception.Message);
-        Assert.Contains("USD", exception.Message);
-        Assert.Empty(_exchangeRates.Rates);
-        Assert.Empty(_history.Entries);
-        Assert.Equal(0, _unitOfWork.SaveChangesCallCount);
+    [Fact]
+    public async Task PublicationInTheFuture_FailsWithoutStoringAnything()
+    {
+        // Stored as PublishedAt, a future timestamp would make every real publication look older and freeze the rates.
+        var result = await HandleAsync(Rates(Now.AddDays(2), (Eur, 0.92m)));
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("exchange_rate.publication_in_future", result.Error!.Code);
+        AssertNothingStored();
+    }
+
+    [Fact]
+    public async Task PublicationSlightlyAheadOfTheLocalClock_IsAccepted()
+    {
+        // Tolerates ordinary clock skew between this server and the provider.
+        var result = await HandleAsync(Rates(Now.AddMinutes(30), (Eur, 0.92m)));
+
+        Assert.True(result.IsSuccess);
     }
 
     [Fact]
@@ -164,6 +182,13 @@ public class SynchronizeExchangeRatesCommandHandlerTests
             SupportedCurrencies.From(new ExchangeRatesOptions { TargetCurrencies = ["EUR", "CAD", "GBP", "CHF"] }),
             new FixedTimeProvider(Now),
             NullLogger<SynchronizeExchangeRatesCommandHandler>.Instance);
+
+    private void AssertNothingStored()
+    {
+        Assert.Empty(_exchangeRates.Rates);
+        Assert.Empty(_history.Entries);
+        Assert.Equal(0, _unitOfWork.SaveChangesCallCount);
+    }
 
     private void StoreAllAt(DateTimeOffset publishedAt)
     {

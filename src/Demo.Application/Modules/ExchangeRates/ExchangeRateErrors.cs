@@ -21,6 +21,16 @@ public static class ExchangeRateErrors
             "exchange_rate.unavailable",
             $"No exchange rate is available yet for {pair}. Rates are synchronized weekly; try again later.");
 
+    public static Error UnexpectedBase(Currency requested, Currency received) =>
+        Error.Unavailable(
+            "exchange_rate.unexpected_base",
+            $"The provider returned rates based on {received}, but {requested} was requested; nothing was stored.");
+
+    public static Error PublicationInTheFuture(DateTimeOffset publishedAt, DateTimeOffset now) =>
+        Error.Unavailable(
+            "exchange_rate.publication_in_future",
+            $"The provider reported a publication time of {publishedAt:O}, later than now ({now:O}); nothing was stored.");
+
     public static Error NoRatesApplied(IEnumerable<Currency> missing) =>
         Error.Unavailable(
             "exchange_rate.no_rates_applied",

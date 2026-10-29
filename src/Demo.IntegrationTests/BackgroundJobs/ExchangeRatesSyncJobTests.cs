@@ -44,12 +44,23 @@ public class ExchangeRatesSyncJobTests
     }
 
     [Fact]
-    public void Execute_NeverOverlapsAndIsRetriedThreeTimes()
+    public void Execute_NeverOverlaps()
     {
         var method = typeof(ExchangeRatesSyncJob).GetMethod(nameof(ExchangeRatesSyncJob.ExecuteAsync))!;
 
         Assert.NotNull(method.GetCustomAttribute<DisableConcurrentExecutionAttribute>());
-        Assert.Equal(3, method.GetCustomAttribute<AutomaticRetryAttribute>()!.Attempts);
+    }
+
+    [Fact]
+    public void Execute_RetriesCoverAProviderOutageOfHoursNotMinutes()
+    {
+        // Hangfire's default backoff spends 3 attempts in about 4 minutes; a weekly job needs a much wider window.
+        var retry = typeof(ExchangeRatesSyncJob).GetMethod(nameof(ExchangeRatesSyncJob.ExecuteAsync))!
+            .GetCustomAttribute<AutomaticRetryAttribute>()!;
+
+        Assert.NotNull(retry.DelaysInSeconds);
+        Assert.Equal(retry.Attempts, retry.DelaysInSeconds.Length);
+        Assert.True(TimeSpan.FromSeconds(retry.DelaysInSeconds.Sum()) >= TimeSpan.FromHours(4));
     }
 
     private sealed class HandlerStub(Result<SynchronizationReport> result)

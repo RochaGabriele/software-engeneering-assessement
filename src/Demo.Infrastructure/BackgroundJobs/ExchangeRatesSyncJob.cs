@@ -16,11 +16,12 @@ public sealed class ExchangeRatesSyncJob
         _handler = handler;
     }
 
-    // Overlapping runs (schedule, bootstrap, manual trigger) are serialized; failed runs are retried with
-    // Hangfire's increasing delays, on top of the HTTP-level retries for short blips (DR-11, DR-12).
+    // Overlapping runs (schedule, startup catch-up, manual trigger) are serialized (DR-11). The HTTP pipeline absorbs
+    // blips of seconds; these job-level retries (1 min, 5 min, 15 min, 1 h, 3 h) ride out a provider outage of about
+    // 4 hours, where Hangfire's default backoff would give up after about 4 minutes and lose the week (DR-12).
     [JobDisplayName("Synchronize exchange rates")]
     [DisableConcurrentExecution(timeoutInSeconds: 300)]
-    [AutomaticRetry(Attempts = 3)]
+    [AutomaticRetry(Attempts = 5, DelaysInSeconds = new[] { 60, 300, 900, 3600, 10800 })]
     public async Task ExecuteAsync(CancellationToken cancellationToken)
     {
         var result = await _handler.HandleAsync(new SynchronizeExchangeRatesCommand(), cancellationToken);

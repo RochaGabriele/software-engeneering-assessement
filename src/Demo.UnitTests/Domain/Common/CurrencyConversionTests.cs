@@ -44,6 +44,15 @@ public class CurrencyConversionTests
     }
 
     [Fact]
+    public void Convert_ToAZeroDecimalCurrency_RoundsToWholeUnits()
+    {
+        // 103.30 × 152.3456 = 15737.30048 JPY; yen has no minor unit, so a price like 15737.30 would be wrong.
+        var conversion = new CurrencyConversion(Currency.USD, Currency.Create("JPY"), 152.3456m, PublishedAt);
+
+        Assert.Equal("15737", Format(conversion.Convert(new Money(103.30m, Currency.USD))));
+    }
+
+    [Fact]
     public void Convert_MoneyInAnotherCurrency_ThrowsDomainException()
     {
         var conversion = new CurrencyConversion(Currency.USD, Eur, 0.92m, PublishedAt);

@@ -2,9 +2,6 @@ namespace Demo.Domain.Common;
 
 public sealed record Money
 {
-    /// <summary>All supported currencies (USD, EUR, CAD, GBP, CHF) have two minor units.</summary>
-    public const int MinorUnits = 2;
-
     public decimal Amount { get; }
 
     public Currency Currency { get; }
@@ -18,9 +15,16 @@ public sealed record Money
     }
 
     /// <summary>
-    /// Rounds half away from zero (consumer price convention, not banker's rounding)
-    /// and normalizes the scale, so 103.3 is represented and serialized as 103.30.
+    /// Rounds to the currency's minor units, half away from zero (consumer price convention, not banker's rounding),
+    /// and normalizes the scale to exactly that many decimals, so 103.3 USD is represented and serialized as 103.30.
     /// </summary>
-    public Money RoundToMinorUnits() =>
-        new(decimal.Round(Amount, MinorUnits, MidpointRounding.AwayFromZero) + 0.00m, Currency);
+    public Money RoundToMinorUnits()
+    {
+        var decimals = Currency.MinorUnits;
+        var rounded = decimal.Round(Amount, decimals, MidpointRounding.AwayFromZero);
+
+        // Adding a zero with the target scale pads the result to that scale (decimal addition keeps the larger scale).
+        var zeroWithTargetScale = new decimal(0, 0, 0, isNegative: false, scale: (byte)decimals);
+        return new Money(rounded + zeroWithTargetScale, Currency);
+    }
 }

@@ -29,6 +29,18 @@ public class MoneyTests
         Assert.Equal(expected, rounded.Amount.ToString(CultureInfo.InvariantCulture));
     }
 
+    [Theory]
+    [InlineData("JPY", "15734.567", "15735")]
+    [InlineData("JPY", "15734.4", "15734")]
+    [InlineData("KWD", "1.23456", "1.235")]
+    [InlineData("KWD", "1.2", "1.200")]
+    public void RoundToMinorUnits_UsesTheCurrencyMinorUnits(string currency, string amount, string expected)
+    {
+        var money = new Money(decimal.Parse(amount, CultureInfo.InvariantCulture), Currency.Create(currency));
+
+        Assert.Equal(expected, money.RoundToMinorUnits().Amount.ToString(CultureInfo.InvariantCulture));
+    }
+
     [Fact]
     public void Constructor_NullCurrency_ThrowsArgumentNullException()
     {

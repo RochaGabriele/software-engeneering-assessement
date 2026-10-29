@@ -1346,3 +1346,16 @@ App ID provided through user-secrets (value never printed or logged). Fresh data
 | `GET /api/products?currency=EUR` | `200` SKU1 `92.45` (103.30 × 0.894958 = 92.449…), SKU2 `91.46` |
 | `?currency=CAD` / `GBP` / `CHF` | `144.76`/`143.22` CAD, `77.41`/`76.59` GBP, `85.50`/`84.59` CHF |
 | Second run (`POST /hangfire/recurring/trigger`, same publication) | `204`; provider `200`; `Applied: 0; unchanged: 4; missing: 0`; history still 4 rows (idempotent) |
+
+### 2026-10-29: Final verification after the review follow-up (commit `1768169`)
+
+| Command / check | Result |
+|---|---|
+| Fresh clone of `a848096` from GitHub, README commands as written | `dotnet build` 0 warnings; `dotnet test` 147 passed; `cd src/Demo.Api && dotnet run` migrated, synced live and served EUR |
+| `dotnet build` (after `dotnet clean`) | `0 Warning(s)`, `0 Error(s)` |
+| `dotnet test` | `Demo.UnitTests` 113 passed; `Demo.IntegrationTests` 68 passed; 0 failed |
+| `dotnet list package --vulnerable --include-transitive` | No vulnerable packages in any of the 6 projects |
+| Docs ↔ code | Every commit hash cited exists; 0 broken relative links; identifiers cited in docs exist in code (remaining mismatches are MSBuild properties, ISO examples and rejected alternatives) |
+| Running app, fresh database | `Exchange rates are missing or older than 7.00:00:00; enqueued a catch-up synchronization` → live provider `200` → `Applied: 4`; `GET ?currency=EUR` 92.83/91.84, `?currency=chf` 85.61/84.70, `JPY` 400 `currency.unsupported`, `EURO` 400 `currency.invalid`, `NOPE` 404; Swagger 200; dashboard lists `exchange-rates-sync` `0 6 * * 1` |
+| Catch-up on a real database | Fresh rates → no run; CHF aged to 8 days → catch-up enqueued, live sync applied 4 rates |
+| Legacy database | A file with the original `EnsureCreated` schema stops startup with "was created without EF Core migrations … Delete it" |

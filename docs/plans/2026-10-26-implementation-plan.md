@@ -1385,3 +1385,15 @@ App ID provided through user-secrets (value never printed or logged). Fresh data
 | Running app, fresh database | `Exchange rates are missing or older than 7.00:00:00; enqueued a catch-up synchronization` → live provider `200` → `Applied: 4`; `GET ?currency=EUR` 92.83/91.84, `?currency=chf` 85.61/84.70, `JPY` 400 `currency.unsupported`, `EURO` 400 `currency.invalid`, `NOPE` 404; Swagger 200; dashboard lists `exchange-rates-sync` `0 6 * * 1` |
 | Catch-up on a real database | Fresh rates → no run; CHF aged to 8 days → catch-up enqueued, live sync applied 4 rates |
 | Legacy database | A file with the original `EnsureCreated` schema stops startup with "was created without EF Core migrations … Delete it" |
+
+### 2026-10-29: Final verification after the second review follow-up (commit `2a8f7b2`)
+
+| Command / check | Result |
+|---|---|
+| Fresh clone of `2a8f7b2` from GitHub: `dotnet build` | `0 Warning(s)`, `0 Error(s)` |
+| `dotnet test` | `Demo.UnitTests` 118 passed; `Demo.IntegrationTests` 76 passed; 0 failed |
+| `dotnet list package --vulnerable --include-transitive` | No vulnerable packages in any of the 6 projects (Cronos 0.13.0 included) |
+| `cd src/Demo.Api && dotnet run` (fresh database, App ID in user-secrets) | Migration applied; `exchange-rates-sync` `0 6 * * 1` UTC; "not refreshed since the scheduled run of 2026-10-26T06:00Z; enqueued a catch-up"; live provider `200`; `Applied: 4` |
+| Endpoints | `GET /api/products` USD 103.30/102.20; `?currency=EUR` 92.55/91.56; `?currency=gbp` 77.31/76.49; `JPY` 400 `currency.unsupported`; `/api/products/NOPE` 404 |
+| Reviewer's scenario on a real database | Rates last retrieved on Thursday 2026-10-22 (manual trigger), Monday 2026-10-26 06:00 missed → catch-up enqueued, live sync applied 4 rates |
+| Docs ↔ code | All cited commit hashes exist; 0 broken links; identifiers missing from code are MSBuild properties, ISO examples, rejected alternatives or names removed in the follow-ups |

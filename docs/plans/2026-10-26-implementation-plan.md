@@ -757,6 +757,8 @@ The test uses `DemoApiFactory` with `ConfigureTestServices(s => s.AddSingleton<I
 
 These signatures are binding. Later tasks must use exactly these names.
 
+> Appendices A and B record the contracts as planned and implemented in Tasks 1–17. The code review on 2026-10-29 changed a few of them (`IExchangeRateRepository.AnyAsync` → `ListAsync`, the retry policy, `RunOnStartupWhenEmpty` → `CatchUpOnStartup` + `StaleAfter`, rounding by `Currency.MinorUnits`); see [Review follow-up](#review-follow-up-2026-10-29).
+
 ### A.1 Shared kernel (`Demo.Domain.Common`)
 
 ```csharp
@@ -1265,6 +1267,38 @@ internal sealed class ExchangeRatesSyncScheduler : IHostedService
 | NFR-04 | 3, 9 |
 | NFR-05 | 9, 13 |
 | NFR-06 | 11, 13, 14 |
+
+---
+
+## Review follow-up (2026-10-29)
+
+An extra-high-effort code review of `a456096..a848096` reported 15 findings. Each one was checked against the code before acting. All fixes are test-first.
+
+**Accepted and fixed**
+
+| Finding | Fix | Commit |
+|---|---|---|
+| A missing or zero provider `timestamp` became 1970-01-01, so the run silently changed nothing | Rejected as a provider failure | `144139f` |
+| A `null` rate failed the whole payload instead of being skipped (DR-07) | `decimal?` entries, skipped with a warning | `144139f` |
+| `HttpClient.Timeout` and an undecodable charset escaped as raw exceptions. Observed: the charset case raises `InvalidOperationException`, not the `NotSupportedException` the review assumed | Translated to `ExchangeRateProviderException`; caller cancellation still propagates | `144139f` |
+| The sync trusted the adapter to check the base currency | Adapter reports the base it received; the handler rejects any other base | `144139f` |
+| 3 job retries with Hangfire's default backoff cover about 4 minutes, so a short outage lost the week | 5 attempts at 1 min, 5 min, 15 min, 1 h, 3 h (about 4 hours) | `540446a` |
+| The startup run only fired on an empty database: a Monday missed during downtime, or a newly configured currency, waited a week | `IsSynchronizationDue` rule (missing or older than `StaleAfter`) drives a startup catch-up; `RunOnStartupWhenEmpty` became `CatchUpOnStartup` + `StaleAfter`; repository `AnyAsync` replaced by `ListAsync` | `14e882d` |
+| A `demo.db` created by the original `EnsureCreated` crashed startup with "table already exists" | Detected before migrating; fails with an actionable message, no automatic deletion | `01d42ea` |
+| Rounding was fixed at 2 decimals although any ISO code can be configured | `Currency.MinorUnits` (ISO 4217) drives `Money.RoundToMinorUnits` | `df54a8c` |
+| The validator compared against a bare `Currency.USD` | Uses `SupportedCurrencies.BaseCurrency` | `7ddd1d6` |
+
+**Not changed, with reasons**
+
+| Finding | Reason |
+|---|---|
+| Do not retry non-transient errors (401/403/quota) at the job level | 401/403 are already not retried over HTTP, and a missing App ID makes no request. The cost is bounded (at most 24 requests in a fully failing week against a 1,000/month quota); separating exception kinds adds complexity for no real gain |
+| Validate configured codes against the real ISO 4217 list (typo `CDA`) | .NET ships no authoritative list without culture data; each sync logs the code as missing. Recorded as risk R-03 |
+| Unify `Product.BaseCurrency` with the exchange-rate base | Different bounded contexts own different facts; the conversion contract already rejects a mismatch (ADR-0002) |
+| Positivity checks repeated across layers; currency-list formatting repeated in two contexts | Each boundary validates its own input (domain invariant, adapter filter, handler defense); contexts stay decoupled instead of sharing an internal helper |
+| One query per currency in the sync (N+1) and tracked read in the catalog | N = 4, once a week; the tracked query is needed on the write path |
+
+Documentation updated to match: spec (DR-04, DR-08, DR-12, §4.2, §6, §8, §11, §12, §15), ADR-0001/0004/0005/0006/0007/0008, README and `Task1_CodeAnalysis.md`.
 
 ---
 

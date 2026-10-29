@@ -7,7 +7,7 @@
 
 Task 2 requires that "the latest rates are either updated and historically logged". The only reading that satisfies both verbs is: keep the latest rate per currency up to date **and** keep a log of every rate fetched. Task 3 then reads "the latest available exchange rate" on every catalog request.
 
-Two technical constraints apply. The EF Core SQLite provider cannot translate `ORDER BY` or comparisons on `decimal` and `DateTimeOffset`, which makes "latest" queries over a log awkward. And the job may run more than once for the same provider publication: manual trigger, retries, the startup bootstrap.
+Two technical constraints apply. The EF Core SQLite provider cannot translate `ORDER BY` or comparisons on `decimal` and `DateTimeOffset`, which makes "latest" queries over a log awkward. And the job may run more than once for the same provider publication: manual trigger, retries, the startup catch-up.
 
 ## Decision
 

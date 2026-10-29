@@ -38,7 +38,7 @@ All locations refer to the original starter code, commit `a456096`.
 |---|---|---|---|---|
 | F-01 | High | Error handling | Unknown SKU returns 500 with a stack trace | Fixed in `fb9b9d4` |
 | F-02 | High | Data integrity | Prices are stored as binary floating point (REAL) in SQLite | Fixed in `fb9b9d4` |
-| F-03 | High | Data / schema | `EnsureCreated()` cannot evolve the schema | Fixed in `b583a92` |
+| F-03 | High | Data / schema | `EnsureCreated()` cannot evolve the schema | Fixed in `b583a92` (legacy database detection in `01d42ea`) |
 | F-04 | High | Security | Three packages with known high-severity vulnerabilities | Fixed in `2414249` |
 | F-05 | High | DDD | Anemic `Product` model with no invariants and primitive obsession | Fixed in `fb9b9d4` |
 | F-06 | Medium | Architecture | The API returns the domain entity | Fixed in `fb9b9d4` |
@@ -48,9 +48,9 @@ All locations refer to the original starter code, commit `a456096`.
 | F-10 | Medium | Operability | Seeding is inline, synchronous and mixed with bootstrapping | Fixed in `fb9b9d4` |
 | F-11 | Medium | Async / API design | No `CancellationToken` propagation; `Async` naming not followed | Fixed in `fb9b9d4` |
 | F-12 | Medium | Tooling | README build and test commands fail as documented | Fixed in `2414249` |
-| F-13 | Medium | Testing | No tests at all | Fixed in `8303098`…`2672d2d` (147 tests) |
+| F-13 | Medium | Testing | No tests at all | Fixed in `8303098`…`df54a8c` (181 tests) |
 | F-14 | Medium | Security | Hangfire dashboard has no explicit authorization | Recommended |
-| F-15 | Medium | Operability | Hangfire MemoryStorage loses state and does not support several instances | Recommended (restart-safe scheduling in `a2460ac`) |
+| F-15 | Medium | Operability | Hangfire MemoryStorage loses state and does not support several instances | Recommended (restart-safe scheduling in `a2460ac`, missed-run catch-up in `14e882d`) |
 | F-16 | Medium | Security | The API has no authentication or authorization | Recommended |
 | F-17 | Low | Naming | Controller namespace and class names are inconsistent | Fixed in `fb9b9d4` |
 | F-18 | Low | API documentation | Swagger documents only an untyped `200` | Fixed in `fb9b9d4`, `0eba70e` |
@@ -91,7 +91,7 @@ All locations refer to the original starter code, commit `a456096`.
 - **Observation:** The schema is created with `Database.EnsureCreated()`, which does nothing if the database file already exists.
 - **Impact:** Any schema change, such as the tables needed for exchange rates, is never applied to an existing database, and the app fails at runtime. There is no versioned history of schema changes.
 - **Recommendation:** Use EF Core Migrations, applied at startup for this demo or by a deployment step in production, with a reviewed `InitialCreate` migration.
-- **Status:** Fixed in `b583a92`
+- **Status:** Fixed in `b583a92` (a database created by the original `EnsureCreated` is detected with an actionable message in `01d42ea`)
 
 ### F-04: Packages with known high-severity vulnerabilities (High)
 
@@ -193,7 +193,7 @@ All locations refer to the original starter code, commit `a456096`.
   - Unit tests for domain and application.
   - Integration tests for persistence (real SQLite) and for the HTTP API (`WebApplicationFactory`).
   - No live external calls in automated tests.
-- **Status:** Fixed in `8303098`…`2672d2d` (147 tests)
+- **Status:** Fixed in `8303098`…`df54a8c` (181 tests)
 
 ### F-14: Hangfire dashboard has no explicit authorization (Medium)
 
@@ -211,8 +211,8 @@ All locations refer to the original starter code, commit `a456096`.
   - Recurring job definitions, queues and history disappear on every restart.
   - With several instances, each one keeps its own storage, so every recurring job runs once per instance.
   - Distributed locks such as `DisableConcurrentExecution` do not work across instances.
-- **Recommendation:** Use persistent shared storage (SQL Server, PostgreSQL or Redis) before going beyond a single instance. In this delivery, the recurring job is registered idempotently on every startup, so a restart cannot lose the schedule.
-- **Status:** Recommended (restart-safe scheduling in `a2460ac`)
+- **Recommendation:** Use persistent shared storage (SQL Server, PostgreSQL or Redis) before going beyond a single instance. In this delivery, the recurring job is registered idempotently on every startup, so a restart cannot lose the schedule, and a run missed while the app was down is caught up on the next startup.
+- **Status:** Recommended (restart-safe scheduling in `a2460ac`, missed-run catch-up in `14e882d`)
 
 ### F-16: The API has no authentication or authorization (Medium)
 

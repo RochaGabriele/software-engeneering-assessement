@@ -94,7 +94,7 @@ dotnet tool restore
 dotnet ef migrations add <Name> --project src/Demo.Infrastructure --startup-project src/Demo.Api --output-dir Persistence/Migrations
 ```
 
-> **Upgrading from the original starter:** delete any existing `src/Demo.Api/demo.db*` files first. That database was created with `EnsureCreated` and has no migration history, so applying migrations to it fails with "table already exists". A fresh clone is not affected, because the file is git-ignored.
+> **Upgrading from the original starter:** delete any existing `src/Demo.Api/demo.db*` files first. That database was created with `EnsureCreated` and has no migration history, so it cannot be upgraded: startup stops with a message naming the file and asking you to delete it (it is then recreated and re-seeded). A fresh clone is not affected, because the file is git-ignored.
 
 ---
 
@@ -104,11 +104,11 @@ dotnet ef migrations add <Name> --project src/Demo.Infrastructure --startup-proj
 |---|---|
 | Source | Open Exchange Rates `latest.json?symbols=EUR,CAD,GBP,CHF`. USD is the base: it is the default, and the only base on the free plan |
 | Schedule | Hangfire recurring job `exchange-rates-sync`, **every Monday at 06:00 UTC** (`ExchangeRates:Sync:Cron` / `TimeZone`) |
-| First run | If no rate is stored when the app starts, one run is enqueued immediately, so a fresh deployment does not wait until Monday (`RunOnStartupWhenEmpty`) |
+| Catch-up on startup | If a supported currency has no rate, or one retrieved more than a week ago, one run is enqueued immediately when the app starts. This covers a fresh deployment, a newly configured currency, and a Monday run missed while the app was down (`CatchUpOnStartup`, `StaleAfter`) |
 | Manual run | Hangfire dashboard → *Recurring Jobs* → `exchange-rates-sync` → **Trigger now** |
 | Storage | `ExchangeRates`: one row per pair, **updated** with the latest rate. `ExchangeRateHistory`: append-only **log** of every applied publication |
 | Idempotency | A publication is applied only if it is newer than the stored one. A unique index on (pair, publication time) guarantees the history never duplicates, whatever the number of reruns |
-| Failures | Transient HTTP errors are retried with backoff and jitter; a failed run is retried by Hangfire (3 attempts); overlapping runs are prevented. A partial response applies the currencies that arrived and logs the missing ones |
+| Failures | Transient HTTP errors are retried with backoff and jitter; a failed run is retried by Hangfire 5 times over about 4 hours (1 min → 3 h); overlapping runs are prevented. A partial response applies the currencies that arrived and logs the missing ones |
 | Precision | Rates stay `decimal` from JSON to database (stored as exact TEXT in SQLite), never `double` |
 
 The supported currencies are configured in `ExchangeRates:TargetCurrencies` and validated at startup. The same list drives both the sync and the catalog.
@@ -128,7 +128,7 @@ curl "http://localhost:5022/api/products?currency=EUR"
 ```
 
 * No `currency`, an empty value or `USD` returns the stored USD prices. The parameter is case-insensitive (`eur` works).
-* Conversion: `price × latest stored USD→currency rate`. The rate is used at full precision and the result is rounded **once** to 2 decimals, half away from zero (`103.30 × 0.92 = 95.036 → 95.04`). Prices always serialize with 2 decimals.
+* Conversion: `price × latest stored USD→currency rate`. The rate is used at full precision and the result is rounded **once** to the currency's minor units, half away from zero (`103.30 × 0.92 = 95.036 → 95.04`). Prices always serialize with exactly those decimals: 2 for every supported currency (the domain also knows ISO 4217 exceptions such as JPY with 0).
 * The endpoint reads rates from the database only. It never calls the external provider.
 
 Errors use RFC 9457 `application/problem+json`, with a stable `code` extension and the `traceId`:

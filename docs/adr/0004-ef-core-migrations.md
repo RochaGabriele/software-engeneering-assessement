@@ -24,5 +24,5 @@ The baseline creates the schema with `Database.EnsureCreated()` and seeds inline
 ## Consequences
 
 - ➕ The schema is versioned, reviewable and evolvable.
-- ➖ A `demo.db` created by the baseline (`EnsureCreated`, no migration history) makes `MigrateAsync` fail with "table already exists". Fresh clones are unaffected because `demo.db` is git-ignored, and the README tells reviewers to delete an old file.
+- ➖ A `demo.db` created by the baseline (`EnsureCreated`, no migration history) cannot be upgraded. Startup detects it before migrating and stops with a message naming the file and telling the developer to delete it (it is recreated and re-seeded); data is never deleted automatically. Fresh clones are unaffected because `demo.db` is git-ignored.
 - ➖ Migrating on startup is unsafe with multiple instances. This is acceptable for a single-instance demo and recorded in Task 1.

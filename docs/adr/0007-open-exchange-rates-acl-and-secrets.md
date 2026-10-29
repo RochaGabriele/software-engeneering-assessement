@@ -21,11 +21,11 @@ The provider's model (a dictionary of codes to numbers plus a UNIX timestamp) mu
 - **Port.** `IExchangeRateProvider` lives in Application (`Modules/ExchangeRates/Ports`) and speaks domain types: `Currency`, `decimal`, `DateTimeOffset`.
 - **Adapter (ACL).** `OpenExchangeRatesClient` is a typed `HttpClient` in Infrastructure. It:
   - calls `latest.json?symbols=EUR,CAD,GBP,CHF`;
-  - **does not send `base`** (USD is the default, and the parameter is restricted on the free plan), but validates that the response `base` is `USD`;
+  - **does not send `base`** (USD is the default, and the parameter is restricted on the free plan), and reports the base the response actually used. The sync use case, not the adapter, rejects any base other than USD: translation and business rules stay separate, and no future adapter can bypass the check;
   - deserializes `rates` straight to `decimal`;
-  - maps `timestamp` to a UTC `DateTimeOffset`;
-  - skips and logs non-positive or missing entries;
-  - converts OXR error bodies into `ExchangeRateProviderException` carrying the OXR `message` code.
+  - maps `timestamp` to a UTC `DateTimeOffset`, and rejects a missing or out-of-range one (it must never become 1970-01-01);
+  - skips and logs null, non-positive or unknown entries;
+  - converts OXR error bodies, malformed or undecodable bodies, network failures and `HttpClient.Timeout` into `ExchangeRateProviderException` carrying a clear message. A cancellation requested by the caller propagates unchanged.
 - **Authentication** goes in the `Authorization: Token` header, **never** the query string, so the App ID cannot appear in URLs, HTTP logs or Hangfire job data.
 - **Secret storage.**
   - The App ID comes from **user-secrets** in development or the environment variable `OpenExchangeRates__AppId` elsewhere. It is never written to `appsettings*.json`.

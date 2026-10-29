@@ -52,15 +52,15 @@ Authentication, pagination, caching, domain or integration events, persistent Ha
 | DR-01 | A malformed or unsupported `currency` returns **400** ProblemDetails that lists the supported currencies |
 | DR-02 | A supported currency with no stored rate yet returns **503** ProblemDetails |
 | DR-03 | `currency` is trimmed and case-insensitive. Absent or empty means USD. Explicit `USD` returns base prices without reading rates |
-| DR-04 | Converted amounts are rounded **once**, to 2 decimals, **half away from zero**. Amounts always serialize with 2 decimals (`95.50`, never `95.5`) |
+| DR-04 | Converted amounts are rounded **once**, to the currency's ISO 4217 minor units (2 for every supported currency), **half away from zero**. Amounts always serialize with exactly those decimals (`95.50`, never `95.5`) |
 | DR-05 | Sync is **idempotent**. A run whose provider timestamp is not newer than the stored one changes nothing and adds no history |
 | DR-06 | Sync is **atomic**. Current rates and history entries commit in one transaction |
 | DR-07 | Partial provider response: currencies present are applied and missing ones are logged as warnings. If none can be applied, the run fails, so Hangfire retries it |
-| DR-08 | When no rate is stored at startup, one sync is enqueued immediately (configurable) |
+| DR-08 | On startup, one sync is enqueued immediately when a supported currency has no stored rate or one older than a schedule period. This covers a fresh database, a newly configured currency, and a Monday run missed while the app was down (configurable) |
 | DR-09 | The OXR App ID is never committed and never appears in URLs or logs |
 | DR-10 | `GET /api/products/{sku}` for an unknown SKU returns **404** (baseline: 500 with stack trace) |
 | DR-11 | Sync runs never overlap |
-| DR-12 | Transient provider failures are retried at the HTTP level (short) and the job level (long) |
+| DR-12 | Transient provider failures are retried at the HTTP level (seconds) and the job level (5 attempts over about 4 hours) |
 
 ### 2.3 Non-functional requirements
 
@@ -85,7 +85,7 @@ Authentication, pagination, caching, domain or integration events, persistent Ha
 | A-03 | Stored product prices are in **USD** | Task 3: "return the product prices in their base currency (USD)" |
 | A-04 | "Every Monday" means **Monday 06:00 UTC**, with cron and time zone configurable | FX markets reopen Sunday ~22:00 UTC, so Monday-morning rates reflect the new week rather than Friday's close |
 | A-05 | "Latest available rate" is ordered by the **provider's publication timestamp**, not by retrieval time | Retrieval time says nothing about the rate's freshness |
-| A-06 | All supported currencies use 2 minor units | True for USD, EUR, CAD, GBP and CHF. See risk R-03 |
+| A-06 | Rounding follows each currency's ISO 4217 minor units | All required currencies (USD, EUR, CAD, GBP, CHF) have 2; `Currency` also knows the exceptions (JPY 0, KWD 3, …) |
 
 ---
 
@@ -118,8 +118,8 @@ flowchart LR
 
 | Type | Kind | Context | Invariants / behavior |
 |---|---|---|---|
-| `Currency` | Value object | Shared | ISO 4217 format: exactly 3 ASCII letters, normalized to upper case. `TryParse` for user input; `Currency.USD` is the catalog base |
-| `Money` | Value object | Shared | `Amount` (`decimal`) + `Currency`. Equality by value |
+| `Currency` | Value object | Shared | ISO 4217 format: exactly 3 ASCII letters, normalized to upper case. `TryParse` for user input. `MinorUnits` per ISO 4217 (2 by default) |
+| `Money` | Value object | Shared | `Amount` (`decimal`) + `Currency`. Equality by value. `RoundToMinorUnits()` is the single rounding rule (DR-04) |
 | `CurrencyConversion` | Value object | Shared | `From`, `To`, `Rate > 0`, `AsOf` (provider publication time; `null` for identity). `Convert(Money)` requires `money.Currency == From`. Returns `Money(round(amount × rate), To)` per DR-04. `Identity(c)` has rate 1 |
 | `Sku` | Value object | Inventory | Non-empty, trimmed, ≤ 64 chars |
 | `Product` | Aggregate root | Inventory | `Sku` (identity), `Name` (non-empty, ≤ 200), `Price: Money` with amount ≥ 0 and currency = catalog base (USD). Private setters; created through a factory |
@@ -130,7 +130,7 @@ flowchart LR
 **Repositories** (interfaces in Domain, never call `SaveChanges`):
 
 - `IProductRepository`: `GetBySkuAsync` (returns `null` when absent), `ListAsync` (ordered by SKU).
-- `IExchangeRateRepository`: `GetAsync(pair)`, `Add`, `AnyAsync`.
+- `IExchangeRateRepository`: `GetAsync(pair)`, `ListAsync` (every current rate), `Add`.
 - `IExchangeRateHistoryRepository`: `Add`.
 
 **Rate direction.** OXR quotes "1 USD = *r* units of the target". The converted price is therefore `priceUsd × r`. A dedicated test pins this ([ADR-0008](../adr/0008-monetary-precision-and-rounding.md)).
@@ -172,7 +172,7 @@ src/
                                           repositories, Migrations/, seeding
     ExchangeRates/OpenExchangeRates/      typed HttpClient adapter (ACL) + options
     BackgroundJobs/                       ExchangeRatesSyncJob, ExchangeRatesSyncScheduler (hosted service
-                                          that registers the recurring job and the bootstrap run)
+                                          that registers the recurring job and the startup catch-up)
     DependencyInjection.cs                AddInfrastructure()
   Demo.Api/
     Controllers/ProductsController.cs
@@ -208,7 +208,7 @@ sequenceDiagram
     participant L as IExchangeRateHistoryRepository
     participant U as IUnitOfWork
 
-    HF->>Job: Monday 06:00 UTC (or startup bootstrap / manual trigger)
+    HF->>Job: Monday 06:00 UTC (or startup catch-up / manual trigger)
     Job->>H: HandleAsync(command, cancellationToken)
     H->>P: GetLatestRatesAsync(USD, EUR CAD GBP CHF)
     P-->>H: LatestRates(publishedAt, rates)
@@ -232,6 +232,7 @@ sequenceDiagram
 
 | Situation | Outcome |
 |---|---|
+| Provider answers on a base other than USD | `ExchangeRateProviderException`; nothing is stored (EUR-based values must never become USD rates) |
 | Pair not stored | Create the `ExchangeRate` and append a history entry |
 | Provider `publishedAt` newer than stored | Update the rate and append a history entry |
 | Provider `publishedAt` equal or older | Ignore: no write and no history entry (DR-05). A unique index on history is the safety net |
@@ -244,8 +245,8 @@ sequenceDiagram
 
 - Recurring job id `exchange-rates-sync`, cron `0 6 * * 1`, time zone `UTC`. Both are configurable.
 - It is registered on **every startup** through `IRecurringJobManager.AddOrUpdate`, which is idempotent. This is required because MemoryStorage loses all state on restart.
-- `[DisableConcurrentExecution]` prevents overlapping runs (DR-11). `[AutomaticRetry(Attempts = 3)]` handles longer outages (DR-12).
-- Bootstrap: when `RunOnStartupWhenEmpty` is true and no rate is stored, the registrar enqueues one immediate run (DR-08).
+- `[DisableConcurrentExecution]` prevents overlapping runs (DR-11). `[AutomaticRetry(Attempts = 5)]` with delays of 1 min, 5 min, 15 min, 1 h and 3 h rides out a provider outage of about 4 hours (DR-12). Hangfire's default backoff would give up after about 4 minutes.
+- Catch-up: when `CatchUpOnStartup` is true, the scheduler asks the `IsSynchronizationDue` rule, and enqueues one immediate run if a supported currency has no rate or one retrieved more than `StaleAfter` ago (default 7 days) (DR-08). MemoryStorage keeps no execution history, so this is what recovers a Monday run missed during downtime.
 - A run can also be triggered manually from the Hangfire dashboard ("Trigger now").
 - Hangfire's job cancellation token flows down to the HTTP call and EF.
 
@@ -296,9 +297,10 @@ Facts were verified against the official docs on 2026-10-26.
 |---|---|
 | Endpoint | `GET {BaseUrl}latest.json?symbols=EUR,CAD,GBP,CHF` (`symbols` is allowed on the free plan) |
 | Auth | Header `Authorization: Token <AppId>`. Never in the query string, so the key cannot leak into URLs or logs |
-| Base | `base` is **not** sent: changing it is a paid feature and USD is the default. The response `base` is validated to equal `USD` |
-| Timestamp | `timestamp` (UNIX seconds, UTC) → `DateTimeOffset` UTC = `PublishedAt` |
-| Number parsing | `rates` deserialized directly to `decimal` (NFR-03) |
+| Base | `base` is **not** sent: changing it is a paid feature and USD is the default. The adapter reports the response `base`; the sync use case rejects anything but `USD` |
+| Timestamp | `timestamp` (UNIX seconds, UTC) → `DateTimeOffset` UTC = `PublishedAt`. A missing or out-of-range timestamp is rejected (it must never become 1970-01-01) |
+| Number parsing | `rates` deserialized directly to `decimal` (NFR-03). Null, non-positive or unknown entries are skipped with a warning |
+| Transport failures | Network errors, resilience give-ups, `HttpClient.Timeout` and undecodable bodies → `ExchangeRateProviderException`. Caller cancellation propagates unchanged |
 | Error body | `{ "error": true, "status", "message", "description" }` → `ExchangeRateProviderException` carrying `message` (e.g. `invalid_app_id`) |
 | Resilience | `AddStandardResilienceHandler()`: attempt and total timeouts, exponential retry with jitter on 5xx/408/429 and network errors, circuit breaker. 401/403 are not retried |
 | Quota | Free plan: 1,000 requests/month. Expected use: ~5/month. The catalog endpoint **never** calls OXR |
@@ -373,7 +375,8 @@ The model is current state plus append-only history ([ADR-0001](../adr/0001-exch
 | `ExchangeRates:Sync:Enabled` | `true` | integration tests set `false` |
 | `ExchangeRates:Sync:Cron` | `0 6 * * 1` | validated at startup |
 | `ExchangeRates:Sync:TimeZone` | `UTC` | validated at startup |
-| `ExchangeRates:Sync:RunOnStartupWhenEmpty` | `true` | DR-08 |
+| `ExchangeRates:Sync:CatchUpOnStartup` | `true` | DR-08 |
+| `ExchangeRates:Sync:StaleAfter` | `7.00:00:00` | one schedule period; validated positive at startup |
 | `OpenExchangeRates:BaseUrl` | `https://openexchangerates.org/api/` | |
 | `OpenExchangeRates:AppId` | *(none)* | **user-secrets** (dev) or env var `OpenExchangeRates__AppId`. Deliberately **not** validated at startup, so the API runs without a key (DR-09) |
 
@@ -388,11 +391,11 @@ TDD drives the implementation. Assertions use xUnit's `Assert`; fakes are writte
 | Project | Scope | Key cases |
 |---|---|---|
 | `Demo.UnitTests` | Domain | `Currency` parsing and normalization; `Money` equality; conversion **direction**, half-away-from-zero midpoint, scale normalization, currency mismatch; `Product` invariants; `ExchangeRate.Update` newer / equal / older |
-| `Demo.UnitTests` | Application | Sync: create, update, ignore stale, partial response, none applicable → failure, provider exception propagates, single `SaveChanges`. Catalog: default USD, explicit USD (no rate read), case-insensitive, invalid → 400 error, unsupported → 400 error, unavailable → 503 error, conversion applied. Get by SKU: found / not found |
-| `Demo.IntegrationTests` | OXR adapter (stubbed `HttpMessageHandler`) | Request path and `symbols`; `Authorization` header present and App ID absent from the URL; timestamp mapping; decimal precision; base mismatch; error body → exception; missing App ID → no request |
-| `Demo.IntegrationTests` | Persistence (SQLite in-memory, migrations applied) | Unique history index; rate precision round-trip; repositories; seeding idempotent |
+| `Demo.UnitTests` | Application | Sync: create, update, ignore stale, partial response, none applicable → failure, provider exception propagates, another base → rejected, single `SaveChanges`. Catch-up rule: nothing stored, missing currency, stale rate, unconfigured currencies ignored. Catalog: default USD, explicit USD (no rate read), case-insensitive, invalid → 400 error, unsupported → 400 error, unavailable → 503 error, conversion applied. Get by SKU: found / not found |
+| `Demo.IntegrationTests` | OXR adapter (stubbed `HttpMessageHandler`) | Request path and `symbols`; `Authorization` header present and App ID absent from the URL; timestamp mapping and rejection when missing or out of range; decimal precision; null or non-positive entries skipped; base reported as received; error body, malformed JSON, undecodable charset, network failure and `HttpClient.Timeout` → provider exception; caller cancellation not disguised; missing App ID → no request |
+| `Demo.IntegrationTests` | Persistence (SQLite in-memory, migrations applied) | Unique history index; rate precision round-trip; repositories; seeding idempotent; model has no changes missing from migrations; a database created by the original `EnsureCreated` fails startup with an actionable message |
 | `Demo.IntegrationTests` | HTTP API (`WebApplicationFactory`) | `GET /api/products` 200 USD and EUR; 400; 503; `GET /api/products/{sku}` 200 / 404; ProblemDetails content type |
-| `Demo.IntegrationTests` | Scheduling | Recurring job registered with id `exchange-rates-sync`, cron `0 6 * * 1`, UTC |
+| `Demo.IntegrationTests` | Scheduling | Recurring job registered with id `exchange-rates-sync`, cron `0 6 * * 1`, UTC; idempotent registration; catch-up enqueued only when due; retry window of hours |
 | `Demo.IntegrationTests` | End to end | Run the sync with a fake provider, then `GET ?currency=EUR` returns converted prices |
 
 The live OXR call is covered by a manual smoke test documented in the README (trigger the job from the dashboard, then call the endpoint).
@@ -405,7 +408,7 @@ Each fix is justified by a Task 2/3 need. The findings document describes the **
 
 | Fix | Why it is in scope |
 |---|---|
-| `EnsureCreated` → Migrations + `UseAsyncSeeding` | New tables would never be created on an existing database |
+| `EnsureCreated` → Migrations + `UseAsyncSeeding`, with an actionable startup error for a database created by the original `EnsureCreated` | New tables would never be created on an existing database |
 | `HasColumnType("decimal(18,2)")` → `HasPrecision(18, 2)` | The baseline stores prices as binary floating-point REAL. Task 3 computes with those prices, and Task 2 stores rates the same way |
 | Rich `Product` (`Sku`, `Money`, invariants) and DTO responses | Task 3 reads and converts `Product.Price`, and the response must state the currency |
 | Global ProblemDetails, 404 for unknown SKU | Task 3 introduces new error cases (400/503) that need one consistent error contract |
@@ -445,10 +448,10 @@ Documented only, not changed: Hangfire MemoryStorage and dashboard authorization
 
 | ID | Risk / limitation | Mitigation / recommendation |
 |---|---|---|
-| R-01 | MemoryStorage loses job history on restart and is single-instance | Registration on every startup. Recommend persistent storage (SQL Server/Postgres) before scaling out |
+| R-01 | MemoryStorage loses job history on restart and is single-instance | Registration on every startup, plus a startup catch-up for missed or missing rates. Recommend persistent storage (SQL Server/Postgres) before scaling out |
 | R-02 | Rates can be up to 7 days old by design (weekly sync) | Matches the requirement. If freshness matters, raise the schedule frequency (quota allows ~hourly) or expose `rateAsOf` |
-| R-03 | Rounding assumes 2 minor units (A-06) | Adding JPY/KWD-style currencies requires minor-unit metadata on `Currency` |
-| R-04 | A reviewer may run with a `demo.db` created by the baseline (`EnsureCreated`) | `demo.db` is git-ignored, so fresh clones are unaffected. The README says to delete an old file |
+| R-03 | A typo in `TargetCurrencies` (e.g. `CDA`) is a well-formed code, so startup accepts it | Each sync logs it as missing and the catalog answers 503 for it. No authoritative ISO 4217 list ships with .NET; validating against the provider's currency list is a possible extension |
+| R-04 | A reviewer may run with a `demo.db` created by the baseline (`EnsureCreated`) | `demo.db` is git-ignored, so fresh clones are unaffected. Otherwise startup stops with a message naming the file and telling the developer to delete it; data is never deleted automatically |
 | R-05 | A sync and a catalog read may run concurrently | SQLite WAL (already active) lets readers proceed during the write transaction |
 | R-06 | No consumer is notified when rates change | Add domain/integration events with an outbox when a consumer exists (e.g. a pricing cache) |
 

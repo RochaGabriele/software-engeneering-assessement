@@ -18,7 +18,7 @@ The baseline lets exceptions escape: an unknown SKU returns **500 with a stack t
 | Case | Status | Rationale |
 |---|---|---|
 | Malformed or unsupported `currency` | **400** | The client sent a value outside the documented set. `detail` lists the supported codes so the client can correct it |
-| Supported currency, no rate stored yet | **503** | The request is valid. The server temporarily cannot fulfil it until the next sync (the startup bootstrap closes this window quickly) |
+| Supported currency, no rate stored yet | **503** | The request is valid. The server temporarily cannot fulfil it until the next sync (the startup catch-up closes this window quickly) |
 | Unknown SKU | **404** | The resource does not exist |
 
 ## Alternatives considered

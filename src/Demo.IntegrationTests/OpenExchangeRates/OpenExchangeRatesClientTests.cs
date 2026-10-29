@@ -120,11 +120,14 @@ public class OpenExchangeRatesClientTests
     }
 
     [Fact]
-    public async Task Response_WithAnUnknownCharset_IsTranslatedToProviderException()
+    public async Task Response_DeclaringAnUnknownCharset_IsStillReadAsUtf8Json()
     {
+        // RFC 8259 requires JSON exchanged between systems to be UTF-8, so a bogus charset label must not break parsing.
         var handler = StubHttpMessageHandler.Returning(HttpStatusCode.OK, SuccessBody, "application/json; charset=x-unknown");
 
-        await Assert.ThrowsAsync<ExchangeRateProviderException>(() => GetLatestAsync(handler));
+        var latest = await GetLatestAsync(handler);
+
+        Assert.Equal(0.921234m, latest.Rates[Currency.Create("EUR")]);
     }
 
     [Fact]

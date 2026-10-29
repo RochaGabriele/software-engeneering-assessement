@@ -1,5 +1,4 @@
 using System.Net.Http.Headers;
-using System.Net.Http.Json;
 using System.Text.Json;
 using Demo.Application.Modules.ExchangeRates.Ports;
 using Demo.Domain.Common;
@@ -105,11 +104,11 @@ internal sealed class OpenExchangeRatesClient : IExchangeRateProvider
         LatestRatesResponse? payload;
         try
         {
-            payload = await response.Content.ReadFromJsonAsync<LatestRatesResponse>(cancellationToken);
+            payload = await ReadJsonAsync<LatestRatesResponse>(response, cancellationToken);
         }
-        catch (Exception exception) when (IsUnreadableBody(exception))
+        catch (JsonException exception)
         {
-            throw new ExchangeRateProviderException("Open Exchange Rates returned a response that could not be read.", exception);
+            throw new ExchangeRateProviderException("Open Exchange Rates returned a malformed response.", exception);
         }
 
         return payload is { Rates: not null }
@@ -117,9 +116,13 @@ internal sealed class OpenExchangeRatesClient : IExchangeRateProvider
             : throw new ExchangeRateProviderException("Open Exchange Rates returned a response without rates.");
     }
 
-    // Malformed JSON, or a Content-Type whose charset cannot be decoded (System.Net.Http.Json reports it as InvalidOperationException).
-    private static bool IsUnreadableBody(Exception exception) =>
-        exception is JsonException or InvalidOperationException or NotSupportedException;
+    // JSON between systems must be UTF-8 (RFC 8259), so the declared charset is ignored instead of trusted. Only malformed
+    // JSON is a provider problem; any other exception here is a bug in this code and must surface as such.
+    private static async Task<T?> ReadJsonAsync<T>(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        var body = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+        return JsonSerializer.Deserialize<T>(body, JsonSerializerOptions.Web);
+    }
 
     private static async Task<ExchangeRateProviderException> CreateProviderExceptionAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {
@@ -128,9 +131,9 @@ internal sealed class OpenExchangeRatesClient : IExchangeRateProvider
         ErrorResponse? error = null;
         try
         {
-            error = await response.Content.ReadFromJsonAsync<ErrorResponse>(cancellationToken);
+            error = await ReadJsonAsync<ErrorResponse>(response, cancellationToken);
         }
-        catch (Exception exception) when (IsUnreadableBody(exception))
+        catch (JsonException)
         {
             // Not an Open Exchange Rates error body (e.g. a proxy's HTML page): report the status alone.
         }

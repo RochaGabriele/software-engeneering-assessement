@@ -24,9 +24,9 @@ public sealed class ExchangeRatesOptionsValidator : IValidateOptions<ExchangeRat
             {
                 failures.Add($"{Key} contains '{value}', which is not a valid ISO 4217 code.");
             }
-            else if (currency == Currency.USD)
+            else if (currency == SupportedCurrencies.BaseCurrency)
             {
-                failures.Add($"{Key} must not contain the base currency {Currency.USD}.");
+                failures.Add($"{Key} must not contain the base currency {SupportedCurrencies.BaseCurrency}.");
             }
             else if (!seen.Add(currency))
             {

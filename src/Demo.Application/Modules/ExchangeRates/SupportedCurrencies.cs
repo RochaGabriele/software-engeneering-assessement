@@ -6,9 +6,11 @@ namespace Demo.Application.Modules.ExchangeRates;
 public sealed class SupportedCurrencies
 {
     /// <summary>
-    /// USD: the only base the Open Exchange Rates free plan offers, and the currency product prices are stored in.
+    /// USD: the only base the Open Exchange Rates free plan offers. Defined once for the whole Exchange Rates context.
     /// </summary>
-    public Currency Base { get; } = Currency.USD;
+    public static readonly Currency BaseCurrency = Currency.USD;
+
+    public Currency Base => BaseCurrency;
 
     public IReadOnlyList<Currency> Targets { get; }
 

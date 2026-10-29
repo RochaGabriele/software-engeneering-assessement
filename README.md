@@ -104,7 +104,7 @@ dotnet ef migrations add <Name> --project src/Demo.Infrastructure --startup-proj
 |---|---|
 | Source | Open Exchange Rates `latest.json?symbols=EUR,CAD,GBP,CHF`. USD is the base: it is the default, and the only base on the free plan |
 | Schedule | Hangfire recurring job `exchange-rates-sync`, **every Monday at 06:00 UTC** (`ExchangeRates:Sync:Cron` / `TimeZone`) |
-| Catch-up on startup | If a supported currency has no rate, or one retrieved more than a week ago, one run is enqueued immediately when the app starts. This covers a fresh deployment, a newly configured currency, and a Monday run missed while the app was down (`CatchUpOnStartup`, `StaleAfter`) |
+| Catch-up on startup | If a supported currency has no rate, or one not refreshed since the most recent scheduled run, one run is enqueued immediately when the app starts. This covers a fresh deployment, a newly configured currency, and a Monday run missed while the app was down (`CatchUpOnStartup`) |
 | Manual run | Hangfire dashboard → *Recurring Jobs* → `exchange-rates-sync` → **Trigger now** |
 | Storage | `ExchangeRates`: one row per pair, **updated** with the latest rate. `ExchangeRateHistory`: append-only **log** of every applied publication |
 | Idempotency | A publication is applied only if it is newer than the stored one. A unique index on (pair, publication time) guarantees the history never duplicates, whatever the number of reruns |

@@ -56,7 +56,7 @@ Authentication, pagination, caching, domain or integration events, persistent Ha
 | DR-05 | Sync is **idempotent**. A run whose provider timestamp is not newer than the stored one changes nothing and adds no history |
 | DR-06 | Sync is **atomic**. Current rates and history entries commit in one transaction |
 | DR-07 | Partial provider response: currencies present are applied and missing ones are logged as warnings. If none can be applied, the run fails, so Hangfire retries it |
-| DR-08 | On startup, one sync is enqueued immediately when a supported currency has no stored rate or one older than a schedule period. This covers a fresh database, a newly configured currency, and a Monday run missed while the app was down (configurable) |
+| DR-08 | On startup, one sync is enqueued immediately when a supported currency has no stored rate or was last retrieved before the most recent scheduled occurrence (cron + time zone). This covers a fresh database, a newly configured currency, and a Monday run missed while the app was down (configurable) |
 | DR-09 | The OXR App ID is never committed and never appears in URLs or logs |
 | DR-10 | `GET /api/products/{sku}` for an unknown SKU returns **404** (baseline: 500 with stack trace) |
 | DR-11 | Sync runs never overlap |
@@ -232,7 +232,8 @@ sequenceDiagram
 
 | Situation | Outcome |
 |---|---|
-| Provider answers on a base other than USD | `ExchangeRateProviderException`; nothing is stored (EUR-based values must never become USD rates) |
+| Provider answers on a base other than USD | Result error `exchange_rate.unexpected_base`; nothing is stored (EUR-based values must never become USD rates) |
+| Provider publication more than 1 h ahead of the clock | Result error `exchange_rate.publication_in_future`; nothing is stored (it would freeze the rates) |
 | Pair not stored | Create the `ExchangeRate` and append a history entry |
 | Provider `publishedAt` newer than stored | Update the rate and append a history entry |
 | Provider `publishedAt` equal or older | Ignore: no write and no history entry (DR-05). A unique index on history is the safety net |
@@ -246,7 +247,7 @@ sequenceDiagram
 - Recurring job id `exchange-rates-sync`, cron `0 6 * * 1`, time zone `UTC`. Both are configurable.
 - It is registered on **every startup** through `IRecurringJobManager.AddOrUpdate`, which is idempotent. This is required because MemoryStorage loses all state on restart.
 - `[DisableConcurrentExecution]` prevents overlapping runs (DR-11). `[AutomaticRetry(Attempts = 5)]` with delays of 1 min, 5 min, 15 min, 1 h and 3 h rides out a provider outage of about 4 hours (DR-12). Hangfire's default backoff would give up after about 4 minutes.
-- Catch-up: when `CatchUpOnStartup` is true, the scheduler asks the `IsSynchronizationDue` rule, and enqueues one immediate run if a supported currency has no rate or one retrieved more than `StaleAfter` ago (default 7 days) (DR-08). MemoryStorage keeps no execution history, so this is what recovers a Monday run missed during downtime.
+- Catch-up: when `CatchUpOnStartup` is true, the scheduler asks the `IsSynchronizationDue` rule, and enqueues one immediate run if a supported currency has no rate or was last retrieved before the most recent occurrence of the cron schedule, computed with Cronos (DR-08). Off-schedule runs (manual triggers, late retries) and DST shifts cannot hide a missed run. MemoryStorage keeps no execution history, so this is what recovers a Monday run missed during downtime.
 - A run can also be triggered manually from the Hangfire dashboard ("Trigger now").
 - Hangfire's job cancellation token flows down to the HTTP call and EF.
 
@@ -300,7 +301,7 @@ Facts were verified against the official docs on 2026-10-26.
 | Base | `base` is **not** sent: changing it is a paid feature and USD is the default. The adapter reports the response `base`; the sync use case rejects anything but `USD` |
 | Timestamp | `timestamp` (UNIX seconds, UTC) → `DateTimeOffset` UTC = `PublishedAt`. A missing or out-of-range timestamp is rejected (it must never become 1970-01-01) |
 | Number parsing | `rates` deserialized directly to `decimal` (NFR-03). Null, non-positive or unknown entries are skipped with a warning |
-| Transport failures | Network errors, resilience give-ups, `HttpClient.Timeout` and undecodable bodies → `ExchangeRateProviderException`. Caller cancellation propagates unchanged |
+| Transport failures | Network errors, resilience give-ups, `HttpClient.Timeout` and malformed JSON → `ExchangeRateProviderException` (bodies are read as UTF-8, as RFC 8259 requires, whatever charset is declared). Caller cancellation propagates unchanged |
 | Error body | `{ "error": true, "status", "message", "description" }` → `ExchangeRateProviderException` carrying `message` (e.g. `invalid_app_id`) |
 | Resilience | `AddStandardResilienceHandler()`: attempt and total timeouts, exponential retry with jitter on 5xx/408/429 and network errors, circuit breaker. 401/403 are not retried |
 | Quota | Free plan: 1,000 requests/month. Expected use: ~5/month. The catalog endpoint **never** calls OXR |
@@ -376,7 +377,6 @@ The model is current state plus append-only history ([ADR-0001](../adr/0001-exch
 | `ExchangeRates:Sync:Cron` | `0 6 * * 1` | validated at startup |
 | `ExchangeRates:Sync:TimeZone` | `UTC` | validated at startup |
 | `ExchangeRates:Sync:CatchUpOnStartup` | `true` | DR-08 |
-| `ExchangeRates:Sync:StaleAfter` | `7.00:00:00` | one schedule period; validated positive at startup |
 | `OpenExchangeRates:BaseUrl` | `https://openexchangerates.org/api/` | |
 | `OpenExchangeRates:AppId` | *(none)* | **user-secrets** (dev) or env var `OpenExchangeRates__AppId`. Deliberately **not** validated at startup, so the API runs without a key (DR-09) |
 

@@ -42,6 +42,14 @@ public sealed class SynchronizeExchangeRatesCommandHandler
     public async Task<Result<SynchronizationReport>> HandleAsync(SynchronizeExchangeRatesCommand command, CancellationToken cancellationToken)
     {
         var latest = await _provider.GetLatestRatesAsync(_supportedCurrencies.Base, _supportedCurrencies.Targets, cancellationToken);
+
+        // Rates on another base would be stored as USD→X and corrupt every converted price; never trust the adapter on this.
+        if (latest.Base != _supportedCurrencies.Base)
+        {
+            throw new ExchangeRateProviderException(
+                $"The exchange rate provider returned rates based on {latest.Base}, but {_supportedCurrencies.Base} was requested.");
+        }
+
         var retrievedAt = _timeProvider.GetUtcNow();
 
         var applied = new List<Currency>();

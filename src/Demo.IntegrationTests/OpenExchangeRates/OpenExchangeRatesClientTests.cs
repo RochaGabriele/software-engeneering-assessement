@@ -75,14 +75,76 @@ public class OpenExchangeRatesClientTests
     }
 
     [Fact]
-    public async Task Response_WithAnotherBase_Throws()
+    public async Task Response_ReportsTheBaseTheProviderActuallyUsed()
     {
+        // The adapter only translates; the sync use case decides whether a different base is acceptable.
         const string body = """{ "timestamp": 1761458400, "base": "EUR", "rates": { "USD": 1.08 } }""";
 
+        var latest = await GetLatestAsync(StubHttpMessageHandler.Returning(HttpStatusCode.OK, body));
+
+        Assert.Equal(Currency.Create("EUR"), latest.Base);
+    }
+
+    [Theory]
+    [InlineData("""{ "timestamp": 1761458400, "rates": { "EUR": 0.92 } }""")]
+    [InlineData("""{ "timestamp": 1761458400, "base": "DOLLARS", "rates": { "EUR": 0.92 } }""")]
+    public async Task Response_WithoutAValidBase_Throws(string body)
+    {
         var exception = await Assert.ThrowsAsync<ExchangeRateProviderException>(
             () => GetLatestAsync(StubHttpMessageHandler.Returning(HttpStatusCode.OK, body)));
 
-        Assert.Contains("EUR", exception.Message);
+        Assert.Contains("base", exception.Message);
+    }
+
+    [Theory]
+    [InlineData("""{ "base": "USD", "rates": { "EUR": 0.92 } }""")]
+    [InlineData("""{ "timestamp": 0, "base": "USD", "rates": { "EUR": 0.92 } }""")]
+    [InlineData("""{ "timestamp": 99999999999999, "base": "USD", "rates": { "EUR": 0.92 } }""")]
+    public async Task Response_WithoutAValidTimestamp_Throws(string body)
+    {
+        // A missing timestamp would otherwise become 1970-01-01 and every stored rate would look "newer".
+        var exception = await Assert.ThrowsAsync<ExchangeRateProviderException>(
+            () => GetLatestAsync(StubHttpMessageHandler.Returning(HttpStatusCode.OK, body)));
+
+        Assert.Contains("timestamp", exception.Message);
+    }
+
+    [Fact]
+    public async Task Response_NullRateEntry_IsSkippedLikeOtherUnusableEntries()
+    {
+        const string body = """{ "timestamp": 1761458400, "base": "USD", "rates": { "EUR": 0.92, "GBP": null } }""";
+
+        var latest = await GetLatestAsync(StubHttpMessageHandler.Returning(HttpStatusCode.OK, body));
+
+        Assert.Equal([Currency.Create("EUR")], latest.Rates.Keys);
+    }
+
+    [Fact]
+    public async Task Response_WithAnUnknownCharset_IsTranslatedToProviderException()
+    {
+        var handler = StubHttpMessageHandler.Returning(HttpStatusCode.OK, SuccessBody, "application/json; charset=x-unknown");
+
+        await Assert.ThrowsAsync<ExchangeRateProviderException>(() => GetLatestAsync(handler));
+    }
+
+    [Fact]
+    public async Task HttpClientTimeout_IsTranslatedToProviderException()
+    {
+        var exception = await Assert.ThrowsAsync<ExchangeRateProviderException>(
+            () => GetLatestAsync(StubHttpMessageHandler.Hanging(), timeout: TimeSpan.FromMilliseconds(100)));
+
+        Assert.IsAssignableFrom<OperationCanceledException>(exception.InnerException);
+    }
+
+    [Fact]
+    public async Task CallerCancellation_IsNotDisguisedAsAProviderFailure()
+    {
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+
+        var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => GetLatestAsync(StubHttpMessageHandler.Hanging(), cancellationToken: cancellation.Token));
+
+        Assert.IsNotType<ExchangeRateProviderException>(exception);
     }
 
     [Fact]
@@ -153,13 +215,23 @@ public class OpenExchangeRatesClientTests
         Assert.Empty(handler.Requests);
     }
 
-    private static Task<LatestRates> GetLatestAsync(StubHttpMessageHandler handler, string? appId = AppId)
+    private static Task<LatestRates> GetLatestAsync(
+        StubHttpMessageHandler handler,
+        string? appId = AppId,
+        TimeSpan? timeout = null,
+        CancellationToken cancellationToken = default)
     {
+        var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://oxr.test/api/") };
+        if (timeout is { } value)
+        {
+            httpClient.Timeout = value;
+        }
+
         var client = new OpenExchangeRatesClient(
-            new HttpClient(handler) { BaseAddress = new Uri("https://oxr.test/api/") },
+            httpClient,
             Options.Create(new OpenExchangeRatesOptions { AppId = appId }),
             NullLogger<OpenExchangeRatesClient>.Instance);
 
-        return client.GetLatestRatesAsync(Currency.USD, Targets, CancellationToken.None);
+        return client.GetLatestRatesAsync(Currency.USD, Targets, cancellationToken);
     }
 }

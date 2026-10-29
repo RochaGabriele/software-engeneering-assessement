@@ -124,6 +124,23 @@ public class SynchronizeExchangeRatesCommandHandlerTests
     }
 
     [Fact]
+    public async Task ProviderAnswersInAnotherBase_FailsWithoutStoringAnything()
+    {
+        // EUR-based values stored as USD→X rates would silently corrupt every converted price.
+        var eurBased = new LatestRates(Eur, T0, new Dictionary<Currency, decimal> { [Cad] = 1.52m, [Gbp] = 0.81m });
+        var handler = CreateHandler(StubExchangeRateProvider.Returning(eurBased));
+
+        var exception = await Assert.ThrowsAsync<ExchangeRateProviderException>(
+            () => handler.HandleAsync(new SynchronizeExchangeRatesCommand(), CancellationToken.None));
+
+        Assert.Contains("EUR", exception.Message);
+        Assert.Contains("USD", exception.Message);
+        Assert.Empty(_exchangeRates.Rates);
+        Assert.Empty(_history.Entries);
+        Assert.Equal(0, _unitOfWork.SaveChangesCallCount);
+    }
+
+    [Fact]
     public async Task RequestsUsdBaseAndConfiguredTargets()
     {
         var provider = StubExchangeRateProvider.Returning(Rates(T0, (Eur, 0.92m)));

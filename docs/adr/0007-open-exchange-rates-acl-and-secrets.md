@@ -25,7 +25,7 @@ The provider's model (a dictionary of codes to numbers plus a UNIX timestamp) mu
   - deserializes `rates` straight to `decimal`;
   - maps `timestamp` to a UTC `DateTimeOffset`, and rejects a missing or out-of-range one (it must never become 1970-01-01);
   - skips and logs null, non-positive or unknown entries;
-  - converts OXR error bodies, malformed or undecodable bodies, network failures and `HttpClient.Timeout` into `ExchangeRateProviderException` carrying a clear message. A cancellation requested by the caller propagates unchanged.
+  - converts OXR error bodies, malformed JSON (bodies are read as UTF-8, as RFC 8259 requires, so a bogus charset label does not break parsing), network failures and `HttpClient.Timeout` into `ExchangeRateProviderException` carrying a clear message. A cancellation requested by the caller propagates unchanged.
 - **Authentication** goes in the `Authorization: Token` header, **never** the query string, so the App ID cannot appear in URLs, HTTP logs or Hangfire job data.
 - **Secret storage.**
   - The App ID comes from **user-secrets** in development or the environment variable `OpenExchangeRates__AppId` elsewhere. It is never written to `appsettings*.json`.

@@ -757,7 +757,7 @@ The test uses `DemoApiFactory` with `ConfigureTestServices(s => s.AddSingleton<I
 
 These signatures are binding. Later tasks must use exactly these names.
 
-> Appendices A and B record the contracts as planned and implemented in Tasks 1–17. The code review on 2026-10-29 changed a few of them (`IExchangeRateRepository.AnyAsync` → `ListAsync`, the retry policy, `RunOnStartupWhenEmpty` → `CatchUpOnStartup` + `StaleAfter`, rounding by `Currency.MinorUnits`); see [Review follow-up](#review-follow-up-2026-10-29).
+> Appendices A and B record the contracts as planned and implemented in Tasks 1–17. The code review on 2026-10-29 changed a few of them (`IExchangeRateRepository.AnyAsync` → `ListAsync`, the retry policy, `RunOnStartupWhenEmpty` → `CatchUpOnStartup` driven by the cron schedule, rounding by `Currency.MinorUnits`); see [Review follow-up](#review-follow-up-2026-10-29) and [Second review follow-up](#second-review-follow-up-2026-10-29).
 
 ### A.1 Shared kernel (`Demo.Domain.Common`)
 
@@ -1299,6 +1299,32 @@ An extra-high-effort code review of `a456096..a848096` reported 15 findings. Eac
 | One query per currency in the sync (N+1) and tracked read in the catalog | N = 4, once a week; the tracked query is needed on the write path |
 
 Documentation updated to match: spec (DR-04, DR-08, DR-12, §4.2, §6, §8, §11, §12, §15), ADR-0001/0004/0005/0006/0007/0008, README and `Task1_CodeAnalysis.md`.
+
+## Second review follow-up (2026-10-29)
+
+A second extra-high-effort review covered only the first follow-up (`a848096..22a336d`), because those fixes were new code too. It reported 13 findings, each checked against the code before acting. All fixes are test-first.
+
+**Accepted and fixed**
+
+| Finding | Fix | Commit |
+|---|---|---|
+| The age window (`StaleAfter`, 7 days) let an off-schedule run (manual trigger, a run that only succeeded on its 3 h retry) or a DST shift hide the next missed Monday; it also drifted from the cron when the schedule changed | The rule now asks whether a supported currency was retrieved before the **most recent scheduled occurrence**, computed from the cron and time zone with Cronos (Hangfire's own cron library, added directly because Hangfire's copy is internal). `StaleAfter` was removed | `731ee5c` |
+| A provider publication time in the future would freeze the rates | Rejected when more than 1 h ahead of the clock | `7ea89b5` |
+| An unexpected base was an exception while "no rates applied" was a result | Both are use-case results (ADR-0006); exceptions stay for transport failures | `7ea89b5` |
+| Catching every `InvalidOperationException` around JSON reading would report bugs as provider failures | Bodies read as UTF-8 (RFC 8259); only `JsonException` is translated | `7c12915` |
+| The legacy-database guard counted EF's own bookkeeping tables, misreading an interrupted first migration | Only the model's application tables count | `1317be6` |
+| Nothing kept the catalog's price currency equal to the exchange-rate base | A cross-context invariant test pins them together | `7dd5f0b` |
+| `SupportedCurrencies` exposed the base twice | One static accessor | `7dd5f0b` |
+
+**Not changed, with reasons**
+
+| Finding | Reason |
+|---|---|
+| Non-fiat codes the provider also serves (BTC, XAU) round to 2 decimals | Out of scope for a consumer price catalog; ISO 4217 gives metals no minor unit. Recorded as risk R-03 |
+| `RunOnStartupWhenEmpty` renamed without a compatibility fallback | The option was never released or deployed |
+| One corrupted stored row stops startup | Corrupted data should fail fast, and the message names the bad code; swallowing it would be a silent failure |
+
+Also stale or moot after the changes above: an unbounded `StaleAfter` overflowing (the option no longer exists), and the request-quota wording in ADR-0005 (now states the bound per failing run plus one run per application start while a sync is due).
 
 ---
 

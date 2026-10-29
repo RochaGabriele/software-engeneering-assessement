@@ -40,6 +40,6 @@ Task 2 requires the sync to "run automatically every Monday" using Hangfire, whi
 
 - ➕ Predictable, configurable schedule with an explicit time zone.
 - ➕ Usable right after deployment; a missed Monday is recovered on the next startup; overlapping runs impossible.
-- ➕ Worst-case quota use is bounded: (1 + 5 job attempts) × (1 + 3 HTTP retries) = 24 requests in a fully failing week, far below the monthly limit.
+- ➕ Worst-case quota use is bounded: (1 + 5 job attempts) × (1 + 3 HTTP retries) = 24 requests for a run that keeps failing, plus at most one more run per application start while a sync is due. That stays far below the monthly limit in any realistic operation.
 - ➖ The startup catch-up is an addition beyond the literal requirement. It is documented, switchable, and leaves the Monday schedule untouched.
 - ➖ A downtime is caught up only when the app starts again; a process that stays up but misses a run (Hangfire server stopped) is not detected. Persistent storage would close that gap.

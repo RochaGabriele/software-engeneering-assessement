@@ -1,6 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Demo.Infrastructure.Persistence;
@@ -22,6 +20,7 @@ public static class DatabaseMigration
 
     // The original starter created the schema with EnsureCreated, which records no migration history. Migrating such a
     // database fails with a cryptic "table already exists"; explain what to do instead of deleting data on our own.
+    // Only application tables count: EF's own bookkeeping tables left by an interrupted first migration are harmless.
     private static async Task EnsureNotCreatedWithoutMigrationsAsync(DemoDbContext dbContext, CancellationToken cancellationToken)
     {
         if ((await dbContext.Database.GetAppliedMigrationsAsync(cancellationToken)).Any())
@@ -29,8 +28,16 @@ public static class DatabaseMigration
             return;
         }
 
-        var databaseCreator = dbContext.GetService<IRelationalDatabaseCreator>();
-        if (await databaseCreator.ExistsAsync(cancellationToken) && await databaseCreator.HasTablesAsync(cancellationToken))
+        var applicationTables = dbContext.Model.GetEntityTypes()
+            .Select(entityType => entityType.GetTableName())
+            .OfType<string>()
+            .ToHashSet();
+
+        var existingTables = await dbContext.Database
+            .SqlQueryRaw<string>("""SELECT name AS "Value" FROM sqlite_master WHERE type = 'table'""")
+            .ToListAsync(cancellationToken);
+
+        if (existingTables.Any(applicationTables.Contains))
         {
             throw new InvalidOperationException(
                 $"The database '{dbContext.Database.GetDbConnection().DataSource}' was created without EF Core migrations " +

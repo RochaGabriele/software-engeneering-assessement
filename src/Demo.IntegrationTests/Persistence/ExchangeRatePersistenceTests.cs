@@ -50,17 +50,21 @@ public class ExchangeRatePersistenceTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task AnyAsync_ReflectsWhetherRatesAreStored()
+    public async Task ListAsync_ReturnsEveryStoredCurrentRate()
     {
         await using (var dbContext = _database.CreateContext())
         {
-            Assert.False(await new ExchangeRateRepository(dbContext).AnyAsync(CancellationToken.None));
+            Assert.Empty(await new ExchangeRateRepository(dbContext).ListAsync(CancellationToken.None));
         }
 
         await SaveAsync(ExchangeRate.Create(UsdEur, 0.92m, T0, T0));
+        await SaveAsync(ExchangeRate.Create(new CurrencyPair(Currency.USD, Currency.Create("CHF")), 0.80m, T0, T0.AddMinutes(1)));
 
         await using var verification = _database.CreateContext();
-        Assert.True(await new ExchangeRateRepository(verification).AnyAsync(CancellationToken.None));
+        var rates = await new ExchangeRateRepository(verification).ListAsync(CancellationToken.None);
+
+        Assert.Equal(["CHF", "EUR"], rates.Select(rate => rate.QuoteCurrency.Code).Order());
+        Assert.Equal(T0.AddMinutes(1), rates.Single(rate => rate.QuoteCurrency.Code == "CHF").RetrievedAt);
     }
 
     [Fact]

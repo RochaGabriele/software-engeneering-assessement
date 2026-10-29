@@ -1,4 +1,5 @@
-using Demo.Domain.Modules.ExchangeRates;
+using Demo.Application.Common;
+using Demo.Application.Modules.ExchangeRates.IsSynchronizationDue;
 using Demo.Infrastructure.BackgroundJobs;
 using Hangfire;
 using Hangfire.MemoryStorage;
@@ -12,11 +13,12 @@ namespace Demo.IntegrationTests.BackgroundJobs;
 public class ExchangeRatesSyncSchedulerTests
 {
     private readonly MemoryStorage _storage = new();
+    private readonly SynchronizationDueStub _synchronizationDue = new();
 
     [Fact]
     public async Task Start_RegistersTheWeeklyRecurringJobOnMondayAt0600Utc()
     {
-        await StartAsync(new ExchangeRateSyncOptions(), ratesStored: true);
+        await StartAsync(new ExchangeRateSyncOptions());
 
         var job = Assert.Single(RecurringJobs());
         Assert.Equal(ExchangeRatesSyncJob.RecurringJobId, job.Id);
@@ -29,41 +31,58 @@ public class ExchangeRatesSyncSchedulerTests
     public async Task Start_CalledOnEveryStartup_KeepsASingleRecurringJob()
     {
         // MemoryStorage forgets everything on restart, so registration runs on every startup and must be idempotent.
-        await StartAsync(new ExchangeRateSyncOptions(), ratesStored: true);
-        await StartAsync(new ExchangeRateSyncOptions(), ratesStored: true);
+        await StartAsync(new ExchangeRateSyncOptions());
+        await StartAsync(new ExchangeRateSyncOptions());
 
         Assert.Single(RecurringJobs());
     }
 
     [Fact]
-    public async Task Start_NoRatesStored_EnqueuesOneImmediateRun()
+    public async Task Start_SynchronizationDue_EnqueuesOneCatchUpRun()
     {
-        await StartAsync(new ExchangeRateSyncOptions(), ratesStored: false);
+        _synchronizationDue.IsDue = true;
+
+        await StartAsync(new ExchangeRateSyncOptions());
 
         Assert.Equal(1, EnqueuedCount());
     }
 
     [Fact]
-    public async Task Start_RatesAlreadyStored_DoesNotEnqueue()
+    public async Task Start_SynchronizationNotDue_DoesNotEnqueue()
     {
-        await StartAsync(new ExchangeRateSyncOptions(), ratesStored: true);
+        _synchronizationDue.IsDue = false;
+
+        await StartAsync(new ExchangeRateSyncOptions());
 
         Assert.Equal(0, EnqueuedCount());
     }
 
     [Fact]
-    public async Task Start_BootstrapDisabled_DoesNotEnqueueEvenWhenEmpty()
+    public async Task Start_AsksWhetherDueWithTheConfiguredStaleness()
     {
-        await StartAsync(new ExchangeRateSyncOptions { RunOnStartupWhenEmpty = false }, ratesStored: false);
+        await StartAsync(new ExchangeRateSyncOptions { StaleAfter = TimeSpan.FromDays(2) });
+
+        Assert.Equal(TimeSpan.FromDays(2), _synchronizationDue.ReceivedQuery?.StaleAfter);
+    }
+
+    [Fact]
+    public async Task Start_CatchUpDisabled_DoesNotEnqueueEvenWhenDue()
+    {
+        _synchronizationDue.IsDue = true;
+
+        await StartAsync(new ExchangeRateSyncOptions { CatchUpOnStartup = false });
 
         Assert.Single(RecurringJobs());
         Assert.Equal(0, EnqueuedCount());
+        Assert.Null(_synchronizationDue.ReceivedQuery);
     }
 
     [Fact]
     public async Task Start_SyncDisabled_RegistersNothing()
     {
-        await StartAsync(new ExchangeRateSyncOptions { Enabled = false }, ratesStored: false);
+        _synchronizationDue.IsDue = true;
+
+        await StartAsync(new ExchangeRateSyncOptions { Enabled = false });
 
         Assert.Empty(RecurringJobs());
         Assert.Equal(0, EnqueuedCount());
@@ -72,7 +91,7 @@ public class ExchangeRatesSyncSchedulerTests
     [Fact]
     public async Task Start_CustomScheduleAndTimeZone_AreHonored()
     {
-        await StartAsync(new ExchangeRateSyncOptions { Cron = "30 7 * * 1", TimeZone = "Europe/Lisbon" }, ratesStored: true);
+        await StartAsync(new ExchangeRateSyncOptions { Cron = "30 7 * * 1", TimeZone = "Europe/Lisbon" });
 
         var job = Assert.Single(RecurringJobs());
         Assert.Equal("30 7 * * 1", job.Cron);
@@ -82,14 +101,13 @@ public class ExchangeRatesSyncSchedulerTests
     [Fact]
     public async Task Start_InvalidCron_FailsStartup()
     {
-        await Assert.ThrowsAsync<ArgumentException>(
-            () => StartAsync(new ExchangeRateSyncOptions { Cron = "not a cron" }, ratesStored: true));
+        await Assert.ThrowsAsync<ArgumentException>(() => StartAsync(new ExchangeRateSyncOptions { Cron = "not a cron" }));
     }
 
-    private async Task StartAsync(ExchangeRateSyncOptions options, bool ratesStored)
+    private async Task StartAsync(ExchangeRateSyncOptions options)
     {
         var scopeFactory = new ServiceCollection()
-            .AddScoped<IExchangeRateRepository>(_ => new StoredRatesStub(ratesStored))
+            .AddSingleton<IQueryHandler<IsSynchronizationDueQuery, bool>>(_synchronizationDue)
             .BuildServiceProvider()
             .GetRequiredService<IServiceScopeFactory>();
 
@@ -111,12 +129,16 @@ public class ExchangeRatesSyncSchedulerTests
 
     private long EnqueuedCount() => _storage.GetMonitoringApi().EnqueuedCount("default");
 
-    private sealed class StoredRatesStub(bool ratesStored) : IExchangeRateRepository
+    private sealed class SynchronizationDueStub : IQueryHandler<IsSynchronizationDueQuery, bool>
     {
-        public Task<bool> AnyAsync(CancellationToken cancellationToken) => Task.FromResult(ratesStored);
+        public bool IsDue { get; set; }
 
-        public Task<ExchangeRate?> GetAsync(CurrencyPair pair, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public IsSynchronizationDueQuery? ReceivedQuery { get; private set; }
 
-        public void Add(ExchangeRate exchangeRate) => throw new NotSupportedException();
+        public Task<bool> HandleAsync(IsSynchronizationDueQuery query, CancellationToken cancellationToken)
+        {
+            ReceivedQuery = query;
+            return Task.FromResult(IsDue);
+        }
     }
 }

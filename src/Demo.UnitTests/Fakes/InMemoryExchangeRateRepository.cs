@@ -18,7 +18,8 @@ public sealed class InMemoryExchangeRateRepository : IExchangeRateRepository
         return Task.FromResult(_rates.SingleOrDefault(rate => rate.Pair == pair));
     }
 
-    public Task<bool> AnyAsync(CancellationToken cancellationToken) => Task.FromResult(_rates.Count > 0);
+    public Task<IReadOnlyList<ExchangeRate>> ListAsync(CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<ExchangeRate>>([.. _rates]);
 
     public void Add(ExchangeRate exchangeRate) => _rates.Add(exchangeRate);
 }

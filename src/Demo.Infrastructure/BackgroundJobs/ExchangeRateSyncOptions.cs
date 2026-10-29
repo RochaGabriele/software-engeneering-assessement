@@ -11,6 +11,12 @@ public sealed class ExchangeRateSyncOptions
 
     public string TimeZone { get; init; } = "UTC";
 
-    /// <summary>Enqueue one immediate run when no rate is stored, so a fresh deployment does not wait for Monday.</summary>
-    public bool RunOnStartupWhenEmpty { get; init; } = true;
+    /// <summary>
+    /// On startup, enqueue one immediate run when a supported currency has no rate or a stale one: a fresh deployment,
+    /// a newly configured currency, or a scheduled run missed while the app was down (MemoryStorage keeps no history).
+    /// </summary>
+    public bool CatchUpOnStartup { get; init; } = true;
+
+    /// <summary>Age after which a stored rate counts as missed. Defaults to one schedule period (a week).</summary>
+    public TimeSpan StaleAfter { get; init; } = TimeSpan.FromDays(7);
 }

@@ -1,6 +1,7 @@
 using Demo.Application.Common;
 using Demo.Application.Modules.ExchangeRates;
 using Demo.Application.Modules.ExchangeRates.Contracts;
+using Demo.Application.Modules.ExchangeRates.IsSynchronizationDue;
 using Demo.Application.Modules.ExchangeRates.SynchronizeExchangeRates;
 using Demo.Application.Modules.Inventory;
 using Demo.Application.Modules.Inventory.GetProductBySku;
@@ -38,5 +39,6 @@ public static class DependencyInjection
 
         services.AddScoped<ICurrencyConversionReader, CurrencyConversionReader>();
         services.AddScoped<ICommandHandler<SynchronizeExchangeRatesCommand, Result<SynchronizationReport>>, SynchronizeExchangeRatesCommandHandler>();
+        services.AddScoped<IQueryHandler<IsSynchronizationDueQuery, bool>, IsSynchronizationDueQueryHandler>();
     }
 }

@@ -4,7 +4,8 @@ public interface IExchangeRateRepository
 {
     Task<ExchangeRate?> GetAsync(CurrencyPair pair, CancellationToken cancellationToken);
 
-    Task<bool> AnyAsync(CancellationToken cancellationToken);
+    /// <summary>The current rate of every stored pair.</summary>
+    Task<IReadOnlyList<ExchangeRate>> ListAsync(CancellationToken cancellationToken);
 
     void Add(ExchangeRate exchangeRate);
 }

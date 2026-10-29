@@ -1,4 +1,5 @@
-using Demo.Domain.Modules.ExchangeRates;
+using Demo.Application.Common;
+using Demo.Application.Modules.ExchangeRates.IsSynchronizationDue;
 using Hangfire;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -9,7 +10,8 @@ namespace Demo.Infrastructure.BackgroundJobs;
 
 /// <summary>
 /// Registers the weekly sync on every startup (MemoryStorage forgets recurring jobs on restart, and AddOrUpdate is
-/// idempotent) and enqueues one immediate run when no rate is stored yet (ADR-0005).
+/// idempotent), then catches up: one immediate run when a supported currency has no rate or a stale one, which covers
+/// a fresh deployment, a newly configured currency and a Monday run missed while the app was down (ADR-0005).
 /// </summary>
 internal sealed class ExchangeRatesSyncScheduler : IHostedService
 {
@@ -55,18 +57,20 @@ internal sealed class ExchangeRatesSyncScheduler : IHostedService
             options.Cron,
             options.TimeZone);
 
-        if (!options.RunOnStartupWhenEmpty)
+        if (!options.CatchUpOnStartup)
         {
             return;
         }
 
         await using var scope = _scopeFactory.CreateAsyncScope();
-        var exchangeRates = scope.ServiceProvider.GetRequiredService<IExchangeRateRepository>();
+        var isSynchronizationDue = scope.ServiceProvider.GetRequiredService<IQueryHandler<IsSynchronizationDueQuery, bool>>();
 
-        if (!await exchangeRates.AnyAsync(cancellationToken))
+        if (await isSynchronizationDue.HandleAsync(new IsSynchronizationDueQuery(options.StaleAfter), cancellationToken))
         {
             _backgroundJobs.Enqueue<ExchangeRatesSyncJob>(job => job.ExecuteAsync(CancellationToken.None));
-            _logger.LogInformation("No exchange rates stored yet; enqueued an initial synchronization.");
+            _logger.LogInformation(
+                "Exchange rates are missing or older than {StaleAfter}; enqueued a catch-up synchronization.",
+                options.StaleAfter);
         }
     }
 

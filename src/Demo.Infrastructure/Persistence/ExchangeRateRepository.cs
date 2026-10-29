@@ -17,7 +17,8 @@ public sealed class ExchangeRateRepository : IExchangeRateRepository
             rate => rate.BaseCurrency == pair.Base && rate.QuoteCurrency == pair.Quote,
             cancellationToken);
 
-    public Task<bool> AnyAsync(CancellationToken cancellationToken) => _dbContext.ExchangeRates.AnyAsync(cancellationToken);
+    public async Task<IReadOnlyList<ExchangeRate>> ListAsync(CancellationToken cancellationToken) =>
+        await _dbContext.ExchangeRates.AsNoTracking().ToListAsync(cancellationToken);
 
     public void Add(ExchangeRate exchangeRate) => _dbContext.ExchangeRates.Add(exchangeRate);
 }

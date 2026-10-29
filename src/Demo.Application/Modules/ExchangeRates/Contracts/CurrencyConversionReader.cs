@@ -6,6 +6,9 @@ namespace Demo.Application.Modules.ExchangeRates.Contracts;
 
 public sealed class CurrencyConversionReader : ICurrencyConversionReader
 {
+    // Qualified: inside this class, "SupportedCurrencies" names the contract's property, not the type.
+    private static readonly Currency BaseCurrency = ExchangeRates.SupportedCurrencies.BaseCurrency;
+
     private readonly IExchangeRateRepository _exchangeRates;
     private readonly SupportedCurrencies _supportedCurrencies;
 
@@ -33,9 +36,9 @@ public sealed class CurrencyConversionReader : ICurrencyConversionReader
         }
 
         // Rates are stored against the base only; cross rates (e.g. EUR to CAD) are not offered.
-        if (from != _supportedCurrencies.Base)
+        if (from != BaseCurrency)
         {
-            return ExchangeRateErrors.UnsupportedConversion(from, to, _supportedCurrencies.Base);
+            return ExchangeRateErrors.UnsupportedConversion(from, to, BaseCurrency);
         }
 
         var pair = new CurrencyPair(from, to);

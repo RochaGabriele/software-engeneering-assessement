@@ -44,13 +44,13 @@ public sealed class SynchronizeExchangeRatesCommandHandler
 
     public async Task<Result<SynchronizationReport>> HandleAsync(SynchronizeExchangeRatesCommand command, CancellationToken cancellationToken)
     {
-        var latest = await _provider.GetLatestRatesAsync(_supportedCurrencies.Base, _supportedCurrencies.Targets, cancellationToken);
+        var latest = await _provider.GetLatestRatesAsync(SupportedCurrencies.BaseCurrency, _supportedCurrencies.Targets, cancellationToken);
         var retrievedAt = _timeProvider.GetUtcNow();
 
         // Rates on another base would be stored as USD→X and corrupt every converted price; never trust the adapter on this.
-        if (latest.Base != _supportedCurrencies.Base)
+        if (latest.Base != SupportedCurrencies.BaseCurrency)
         {
-            return ExchangeRateErrors.UnexpectedBase(_supportedCurrencies.Base, latest.Base);
+            return ExchangeRateErrors.UnexpectedBase(SupportedCurrencies.BaseCurrency, latest.Base);
         }
 
         // A future publication time, once stored, would make every real publication look older and freeze the rates.
@@ -73,7 +73,7 @@ public sealed class SynchronizeExchangeRatesCommandHandler
                 continue;
             }
 
-            var pair = new CurrencyPair(_supportedCurrencies.Base, target);
+            var pair = new CurrencyPair(SupportedCurrencies.BaseCurrency, target);
             var exchangeRate = await _exchangeRates.GetAsync(pair, cancellationToken);
 
             if (exchangeRate is null)

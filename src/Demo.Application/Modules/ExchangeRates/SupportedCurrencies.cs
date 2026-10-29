@@ -7,10 +7,10 @@ public sealed class SupportedCurrencies
 {
     /// <summary>
     /// USD: the only base the Open Exchange Rates free plan offers. Defined once for the whole Exchange Rates context.
+    /// It must equal the currency product prices are stored in (Inventory's <c>Product.BaseCurrency</c>): the catalog
+    /// converts from that currency, and conversions are only available from this base. A test pins the two together.
     /// </summary>
     public static readonly Currency BaseCurrency = Currency.USD;
-
-    public Currency Base => BaseCurrency;
 
     public IReadOnlyList<Currency> Targets { get; }
 
@@ -19,7 +19,7 @@ public sealed class SupportedCurrencies
     public SupportedCurrencies(IEnumerable<Currency> targets)
     {
         Targets = [.. targets];
-        All = [Base, .. Targets];
+        All = [BaseCurrency, .. Targets];
     }
 
     /// <remarks>Expects options already checked by <see cref="ExchangeRatesOptionsValidator"/>.</remarks>

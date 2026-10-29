@@ -23,7 +23,7 @@ public sealed class IsSynchronizationDueQueryHandler : IQueryHandler<IsSynchroni
     public async Task<bool> HandleAsync(IsSynchronizationDueQuery query, CancellationToken cancellationToken)
     {
         var retrievedAtByCurrency = (await _exchangeRates.ListAsync(cancellationToken))
-            .Where(rate => rate.BaseCurrency == _supportedCurrencies.Base)
+            .Where(rate => rate.BaseCurrency == SupportedCurrencies.BaseCurrency)
             .ToDictionary(rate => rate.QuoteCurrency, rate => rate.RetrievedAt);
 
         return _supportedCurrencies.Targets.Any(target =>

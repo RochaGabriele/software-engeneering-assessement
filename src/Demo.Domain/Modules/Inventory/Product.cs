@@ -7,7 +7,10 @@ public sealed class Product
 {
     public const int NameMaxLength = 200;
 
-    /// <summary>Product prices are stored in USD; other currencies are derived through exchange rates.</summary>
+    /// <summary>
+    /// Product prices are stored in USD; other currencies are derived through exchange rates, which must therefore use the
+    /// same base (the Exchange Rates context's own definition; a test pins the two together).
+    /// </summary>
     public static readonly Currency BaseCurrency = Currency.USD;
 
     public Sku Sku { get; private set; } = null!;

@@ -24,6 +24,7 @@
 - **Services** use constructor injection into `private readonly` fields named `_camelCase`, matching the existing code.
 - **Async**: every async method ends in `Async` and takes a `CancellationToken cancellationToken` as its last parameter.
 - **Tests** are named `Method_Scenario_ExpectedOutcome`. Assertions use xUnit `Assert`. Fakes are hand-written and live in `Fakes/` folders. There is no mocking library.
+  - The names in the task tables below are the *planned* working names. During implementation they were refined into more descriptive names (e.g. `Validator_Empty_Fails` became `Validate_NoTargets_Fails`) inside the test class listed in each task's **Files**. Every planned case is implemented, plus extra cases found while writing the tests.
 - **Verification commands** always run from the repository root:
   - `dotnet build` → `0 Warning(s)`, `0 Error(s)`
   - `dotnet test` → all passed
@@ -70,6 +71,7 @@ src/Demo.Infrastructure/
   Persistence/DemoDbContext.cs           REWRITTEN (: IUnitOfWork, configurations from assembly)
   Persistence/DatabaseMigration.cs       NEW  (MigrateDatabaseAsync extension)
   Persistence/DemoDataSeeder.cs          NEW
+  Persistence/DemoDbContextOptions.cs    NEW  (UseDemoSeeding: the same seeding hook for the app and the tests)
   Persistence/ProductRepository.cs       REWRITTEN
   Persistence/ExchangeRateRepository.cs  ExchangeRateHistoryRepository.cs  NEW
   Persistence/Converters/CurrencyConverter.cs  SkuConverter.cs  UnixMillisecondsConverter.cs  NEW
@@ -417,7 +419,7 @@ Contracts: Appendix A.5. Targets EUR, CAD, GBP, CHF. `t0 = 2026-10-26T06:00:00Z`
 | `NonPositiveRate_TreatedAsMissing` | CHF `0` | `Missing` contains CHF |
 | `NothingApplicable_ReturnsFailure` | provider returns no target rates | failure, `ErrorType.Unavailable`, code `exchange_rate.no_rates_applied`; `SaveChanges` not called |
 | `ProviderThrows_Propagates` | provider throws `ExchangeRateProviderException` | the same exception propagates; nothing saved |
-| `RequestsBaseAndConfiguredTargets` | any | provider received `USD` and `[EUR,CAD,GBP,CHF]` |
+| `RequestsUsdBaseAndConfiguredTargets` | any | provider received `USD` and `[EUR,CAD,GBP,CHF]` |
 
 - [x] **Steps 2–4:** red → implement per Appendix A.5 → green.
 - [x] **Step 5: Commit** `feat(exchange-rates): add synchronize exchange rates use case`.
@@ -459,7 +461,7 @@ Contracts: Appendix A.6–A.8.
 | `BySku_Found_ReturnsDto` | `"SKU1"` | `ProductDto("SKU1","Name",103.30m,"USD")`, price string `"103.30"` |
 | `BySku_Unknown_ReturnsNotFound` | `"NOPE"` | code `product.not_found` |
 | `BySku_InvalidSku_ReturnsNotFound` | 65 chars | code `product.not_found` |
-| `Catalog_NoCurrency_ReturnsUsdOrderedBySku` | `null` | `[SKU1 103.30 USD, SKU2 102.20 USD]` |
+| `Catalog_NoCurrency_ReturnsUsdOrderedBySku` | `null` | `[SKU1 103.30 USD, SKU2 102.20 USD]`. *Changed during implementation:* ordering is a repository contract executed in SQL, so it is asserted against real SQLite in `ProductRepositoryTests.ListAsync_ReturnsEveryProductOrderedBySku` (Task 10); the handler test asserts that the repository order is preserved |
 | `Catalog_EmptyCurrency_ReturnsUsd` | `"  "` | USD prices |
 | `Catalog_ExplicitUsd_DoesNotReadRates` | `"USD"` | USD prices; rate repository call count `0` |
 | `Catalog_Eur_ConvertsWithLatestRate` | `"eur"` | `[SKU1 95.04 EUR, SKU2 94.02 EUR]` |
@@ -652,11 +654,11 @@ services.AddHttpClient<IExchangeRateProvider, OpenExchangeRatesClient>((sp, clie
 - Api: `ProductsController.cs` gets `GET` with `[FromQuery] string? currency`. (No `public partial class Program;` is needed: ASP.NET Core 10 generates a public `Program` for top-level statements, verified while implementing.)
 - Tests: `src/Demo.IntegrationTests/Api/{DemoApiFactory,ProductsEndpointTests}.cs`.
 
-`DemoApiFactory : WebApplicationFactory<Program>, IAsyncLifetime`:
+`DemoApiFactory : WebApplicationFactory<Program>`:
 - environment `Testing`, so user-secrets are never loaded and a real App ID cannot leak into tests;
 - `UseSetting("ConnectionStrings:Demo", $"Data Source={tempFile}")` and `UseSetting("ExchangeRates:Sync:Enabled", "false")`;
-- a helper `SeedRateAsync(Currency quote, decimal rate)` writes through a scope's `DemoDbContext`;
-- dispose calls `SqliteConnection.ClearAllPools()` and deletes the temp file.
+- a helper `StoreRateAsync(string quoteCurrency, decimal rate)` writes through a scope's `DemoDbContext`;
+- the overridden `DisposeAsync` calls `SqliteConnection.ClearAllPools()` and deletes the temp file.
 
 - [x] **Step 1: Write the failing tests.**
 
